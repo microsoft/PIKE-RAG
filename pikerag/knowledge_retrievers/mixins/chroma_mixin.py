@@ -35,7 +35,7 @@ def _documents_match(docs: List[Document], ids: Optional[List[str]], vector_stor
         meta_in_doc: dict = docs[idx].metadata
         if ids is not None:
             res = vector_store.get(ids=ids[idx])
-            if len(res) == 0:
+            if len(res) == 0 or len(res["documents"]) == 0:
                 print(f"[ChromaDB Loading Check] No data with id {ids[idx]} exist!")
                 return False
             content_in_store = res["documents"][0]
