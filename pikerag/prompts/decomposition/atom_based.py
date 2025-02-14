@@ -9,6 +9,9 @@ from pikerag.prompts.qa.generation import generation_qa_with_reference_template,
 from pikerag.utils.json_parser import parse_json
 
 
+DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant on question answering."
+
+
 def atom_infos_to_context_string(chosen_atom_infos: List[AtomRetrievalInfo], limit: int=80000) -> str:
     context: str = ""
     chunk_id_set = set()
@@ -32,7 +35,7 @@ def atom_infos_to_context_string(chosen_atom_infos: List[AtomRetrievalInfo], lim
 
 question_decomposition_template = MessageTemplate(
     template=[
-        ("system", "You are a helpful AI assistant good at question decomposition."),
+        ("system", "{system_prompt}"),
         ("user", """
 # Task
 Your task is to analyse the providing context then raise atomic sub-questions for the knowledge that can help you answer the question better. Think in different ways and raise as many diverse questions as possible.
@@ -40,8 +43,8 @@ Your task is to analyse the providing context then raise atomic sub-questions fo
 # Output Format
 Please output in following JSON format:
 {{
-    "thinking": <your thinking for this task, including analysis to the question and the given context>,
-    "sub_questions": <a list of sub-questions indicating what you need>
+    "thinking": <A string. Your thinking for this task, including analysis to the question and the given context.>,
+    "sub_questions": <A list of string. The sub-questions indicating what you need.>
 }}
 
 # Context
@@ -55,6 +58,9 @@ The context we already have:
 """.strip()),
     ],
     input_variables=["content", "chosen_context"],
+    partial_variables={
+        "system_prompt": "You are a helpful AI assistant good at question decomposition.",
+    },
 )
 
 
@@ -85,7 +91,7 @@ question_decompose_protocol = CommunicationProtocol(
 
 atom_question_selection_template = MessageTemplate(
     template=[
-        ("system", "You are a helpful AI assistant good at question answering."),
+        ("system", "{system_prompt}"),
         ("user", """
 # Task
 Your task is to analyse the providing context then decide which sub-questions may be useful to be answered before you can answer the given question. Select a most relevant sub-question from the given question list, avoid selecting sub-question that can already be answered with the given context or with your own knowledge.
@@ -93,8 +99,8 @@ Your task is to analyse the providing context then decide which sub-questions ma
 # Output Format
 Please output in following JSON format:
 {{
-    "thinking": <your thinking for this selection task>,
-    "question_idx": <a sub-question index, an integer from 1 to {num_atoms}>
+    "thinking": <A string. Your thinking for this selection task.>,
+    "question_idx": <A list of integers. Each integer indicates a sub-question index from 1 to {num_atoms}.>
 }}
 
 # Context
@@ -111,6 +117,9 @@ The context we already have:
 """.strip()),
     ],
     input_variables=["content", "num_atoms", "chosen_context", "atom_list_str"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
 )
 
 
@@ -161,7 +170,7 @@ atom_question_selection_protocol = CommunicationProtocol(
 
 chunk_selection_template = MessageTemplate(
     template=[
-        ("system", "You are a helpful AI assistant good at question answering."),
+        ("system", "{system_prompt}"),
         ("user", """
 # Task
 Your task is to analyse the providing context then decide which paragraph in the list may be useful for you to answer the given question. Select a most relevant paragraph from the given paragraph list.
@@ -169,8 +178,8 @@ Your task is to analyse the providing context then decide which paragraph in the
 # Output Format
 Please output in following JSON format:
 {{
-    "thinking": <your thinking for this selection task>,
-    "paragraph_idx": <a paragraph index, an integer from 1 to {num_chunks}>
+    "thinking": <A string. Your thinking for this selection task.>,
+    "paragraph_idx": <An integer. A paragraph index from 1 to {num_chunks}.>
 }}
 
 # Context
@@ -187,6 +196,9 @@ The context we already have:
 """.strip()),
     ],
     input_variables=["content", "chosen_context", "num_chunks", "chunk_list_str"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
 )
 
 
@@ -242,10 +254,9 @@ class ContextQaParser(GenerationQaParser):
     def encode(self, content: str, chosen_atom_infos: List[AtomRetrievalInfo], **kwargs) -> Tuple[str, Dict]:
         _, supplementary =  super().encode(content, **kwargs)
 
+        context_if_any = ""
         if len(chosen_atom_infos) > 0:
-            context_if_any = "Related context, reports, or articles: " + atom_infos_to_context_string(chosen_atom_infos)
-        else:
-            context_if_any = ""
+            context_if_any = atom_infos_to_context_string(chosen_atom_infos)
         supplementary["context_if_any"] = context_if_any
 
         return content, supplementary

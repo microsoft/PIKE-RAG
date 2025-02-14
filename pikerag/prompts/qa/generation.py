@@ -4,12 +4,14 @@
 from typing import Dict, List, Tuple
 
 from pikerag.prompts import BaseContentParser, CommunicationProtocol, MessageTemplate
-from pikerag.utils.json_parser import parse_json_v2, parse_json
+from pikerag.utils.json_parser import parse_json
 
+
+DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant on question answering."
 
 generation_qa_template = MessageTemplate(
     template=[
-        ("system", "You are a helpful AI assistant on question answering."),
+        ("system", "{system_prompt}"),
         ("user", """
 # Task
 Your task is to give your answer to the given question.
@@ -17,8 +19,8 @@ Your task is to give your answer to the given question.
 # Output format
 Your output should strictly follow the format below. Make sure your output parsable by json in Python.
 {{
-    "answer": <Your answer, format it as a string.>,
-    "rationale": <Rationale behind your answer>
+    "answer": <a string. Your answer.>,
+    "rationale": <a string. Rationale behind your answer.>
 }}
 
 # Question
@@ -28,22 +30,25 @@ Let's think step by step.
 """.strip()),
     ],
     input_variables=["content"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
 )
 
 
 generation_qa_with_reference_template = MessageTemplate(
     template=[
-        ("system", "You are a helpful AI assistant on question answering."),
+        ("system", "{system_prompt}"),
         ("user", """
 # Task
 Your task is to answer a question referring to a given context, if any.
-For answering the Question at the end, you need to first read the articles, reports, or context provided, then give your final answer.
+For answering the Question at the end, you need to first read the context provided, then give your final answer.
 
 # Output format
 Your output should strictly follow the format below. Make sure your output parsable by json in Python.
 {{
-    "answer": <Your Answer, format it as a string.>,
-    "rationale": <rationale behind your choice>
+    "answer": <A string. Your Answer.>,
+    "rationale": <A string. Rationale behind your choice>
 }}
 
 # Context, if any
@@ -56,6 +61,9 @@ Let's think step by step.
 """.strip()),
     ],
     input_variables=["content", "context_if_any", "yes_or_no_limit"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
 )
 
 
@@ -72,14 +80,11 @@ class GenerationQaParser(BaseContentParser):
             yes_or_no_limit = ""
 
         # Construct reference contexts.
-        if len(references) > 0:
-            context_if_any = "Related context, reports, or articles: "
-            for context in list(set(references)):
-                context_if_any += f"\n{context}\n"
-                if len(context_if_any) >= context_len_limit:
-                    break
-        else:
-            context_if_any = ""
+        context_if_any = ""
+        for context in list(set(references)):
+            context_if_any += f"\n{context}\n"
+            if len(context_if_any) >= context_len_limit:
+                break
 
         return content, {
             "yes_or_no_limit": yes_or_no_limit,
@@ -90,17 +95,11 @@ class GenerationQaParser(BaseContentParser):
         try:
             output = parse_json(content)
         except Exception as e:
-            print(f"[QaParser] Content: {content}\nException: {e}")
-
-            try:
-                output = parse_json_v2(content)
-            except Exception as e2:
-                print(f"  [QaParser] Exception: {e2}")
-
-                return {  # TODO
-                    "answer": "parsing error",
-                    "rationale": "parsing error",
-                }
+            print(f"[GenerationQaParser] Content: {content}\nException: {e}")
+            return {  # TODO
+                "answer": "parsing error",
+                "rationale": "parsing error",
+            }
 
         for key, value in output.items():
             output[key] = str(value)

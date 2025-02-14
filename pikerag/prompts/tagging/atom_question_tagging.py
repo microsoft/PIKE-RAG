@@ -6,9 +6,12 @@ from typing import List, Tuple
 from pikerag.prompts import BaseContentParser, CommunicationProtocol, MessageTemplate
 
 
+DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant good at content understanding and asking question."
+
+
 atom_question_tagging_template = MessageTemplate(
     template=[
-        ("system", "You are a helpful AI assistant good at content understanding and asking question."),
+        ("system", "{system_prompt}"),
         ("user", """
 # Task
 Your task is to extract as many questions as possible that are relevant and can be answered by the given content. Please try to be diverse and avoid extracting duplicated or similar questions. Make sure your question contain necessary entity names and avoid to use pronouns like it, he, she, they, the company, the person etc.
@@ -23,6 +26,9 @@ Output your answers line by line, with each question on a new line, without item
 """.strip()),
     ],
     input_variables=["content"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
 )
 
 

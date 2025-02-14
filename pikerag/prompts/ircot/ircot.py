@@ -4,7 +4,7 @@
 from typing import Dict, List, Tuple
 
 from pikerag.prompts import BaseContentParser, CommunicationProtocol, MessageTemplate
-from pikerag.utils.json_parser import parse_json_v2, parse_json
+from pikerag.utils.json_parser import parse_json
 
 
 """
@@ -108,16 +108,10 @@ class IRCoTParser(BaseContentParser):
             output = parse_json(content)
         except Exception as e:
             print(f"[IRCoTParser] Content: {content}\nException: {e}")
-
-            try:
-                output = parse_json_v2(content)
-            except Exception as e2:
-                print(f"  [IRCoTParser] Exception: {e2}")
-
-                return {
-                    "next_rationale": None,
-                    "answer": None,
-                }
+            return {
+                "next_rationale": None,
+                "answer": None,
+            }
 
         for key, value in output.items():
             if value is not None:
