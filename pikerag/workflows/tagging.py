@@ -72,6 +72,7 @@ class TaggingWorkflow:
         self._tagger = LLMPoweredTagger(
             llm_client=self._client,
             tagging_protocol=self._tagging_protocol,
+            num_parallel=tagger_config.get("num_parallel", 1),
             tag_name=self._tag_name,
             llm_config=self._yaml_config["llm_client"]["llm_config"],
             logger=self._tagger_logger,
