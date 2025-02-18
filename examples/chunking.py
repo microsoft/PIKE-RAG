@@ -23,8 +23,9 @@ def load_yaml_config(config_path: str, args: argparse.Namespace) -> dict:
     shutil.copy(config_path, log_dir)
 
     # LLM cache config
-    if yaml_config["llm_client"]["cache_config"]["location_prefix"] is None:
-        yaml_config["llm_client"]["cache_config"]["location_prefix"] = experiment_name
+    if "llm_client" in yaml_config:
+        if yaml_config["llm_client"]["cache_config"]["location_prefix"] is None:
+            yaml_config["llm_client"]["cache_config"]["location_prefix"] = experiment_name
 
     # input doc dir
     input_doc_dir = yaml_config["input_doc_setting"]["doc_dir"]

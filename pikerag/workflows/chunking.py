@@ -11,6 +11,7 @@ from tqdm import tqdm
 from pikerag.document_loaders import get_loader
 from pikerag.document_transformers import LLMPoweredRecursiveSplitter
 from pikerag.llm_client import BaseLLMClient
+from pikerag.utils.config_loader import load_class
 from pikerag.utils.logger import Logger
 from pikerag.utils.walker import list_files_recursively
 
@@ -54,23 +55,39 @@ class ChunkingWorkflow:
         return
 
     def _init_splitter(self) -> None:
-        self._init_llm_client()
+        splitter_config: dict = self._yaml_config["splitter"]
+        splitter_args: dict = splitter_config.get("args", {})
 
-        protocol_configs = self._yaml_config["chunking_protocol"]
-        protocol_module = importlib.import_module(protocol_configs["module_path"])
-        chunk_summary_protocol = getattr(protocol_module, protocol_configs["chunk_summary"])
-        chunk_summary_refinement_protocol = getattr(protocol_module, protocol_configs["chunk_summary_refinement"])
-        chunk_resplit_protocol = getattr(protocol_module, protocol_configs["chunk_resplit"])
-
-        self._splitter = LLMPoweredRecursiveSplitter(
-            llm_client=self._client,
-            first_chunk_summary_protocol=chunk_summary_protocol,
-            last_chunk_summary_protocol=chunk_summary_refinement_protocol,
-            chunk_resplit_protocol=chunk_resplit_protocol,
-            llm_config=self._yaml_config["llm_client"]["llm_config"],
-            logger=self._logger,
-            **self._yaml_config["splitter"],
+        splitter_class = load_class(
+            module_path=splitter_config["module_path"],
+            class_name=splitter_config["class_name"],
+            base_class=None,
         )
+
+        if issubclass(splitter_class, (LLMPoweredRecursiveSplitter)):
+            # Initialize LLM client
+            self._init_llm_client()
+
+            # Update args
+            splitter_args["llm_client"] = self._client
+            splitter_args["llm_config"] = self._yaml_config["llm_client"]["llm_config"]
+
+            splitter_args["logger"] = self._logger
+
+        if issubclass(splitter_class, LLMPoweredRecursiveSplitter):
+            # Load protocols
+            protocol_configs = self._yaml_config["chunking_protocol"]
+            protocol_module = importlib.import_module(protocol_configs["module_path"])
+            chunk_summary_protocol = getattr(protocol_module, protocol_configs["chunk_summary"])
+            chunk_summary_refinement_protocol = getattr(protocol_module, protocol_configs["chunk_summary_refinement"])
+            chunk_resplit_protocol = getattr(protocol_module, protocol_configs["chunk_resplit"])
+
+            # Update args
+            splitter_args["first_chunk_summary_protocol"] = chunk_summary_protocol
+            splitter_args["last_chunk_summary_protocol"] = chunk_summary_refinement_protocol
+            splitter_args["chunk_resplit_protocol"] = chunk_resplit_protocol
+
+        self._splitter = splitter_class(**splitter_args)
         return
 
     def _init_file_infos(self) -> None:

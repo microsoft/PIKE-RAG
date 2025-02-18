@@ -53,9 +53,13 @@ chunking_protocol:
   chunk_summary_refinement: chunk_summary_refinement_protocol
   chunk_resplit: chunk_resplit_protocol
 
+
 splitter:
-  separators:
-    - "\n"
-  is_separator_regex: False
-  chunk_size: 512
-  chunk_overlap: 0
+  module_path: pikerag.document_transformers
+  class_name: LLMPoweredRecursiveSplitter
+  args:
+    separators:
+      - "\n"
+    is_separator_regex: False
+    chunk_size: 512
+    chunk_overlap: 0
