@@ -3,6 +3,7 @@
 
 import importlib
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 import jsonlines
@@ -30,6 +31,9 @@ class QaWorkflow:
         self._init_evaluator()
 
         self._init_qas_metrics_table()
+
+        self._workflow_config: dict = self._yaml_config["workflow"].get("args", {})
+        self._num_parallel: int = self._workflow_config.get("num_parallel", 1)
 
     def _init_logger(self) -> None:
         self._logger: Logger = Logger(
@@ -170,8 +174,7 @@ class QaWorkflow:
         pbar.set_description_str(desc=desc, refresh=True)
         return
 
-    def run(self) -> None:
-        """The QA testing flow."""
+    def _single_thread_run(self) -> None:
         # Create the file handler for the output jsonlines recordings.
         fout = jsonlines.open(self._yaml_config["test_jsonl_path"], "w")
 
@@ -203,6 +206,68 @@ class QaWorkflow:
         self._evaluator.on_test_end()
 
         fout.close()
+
+    def _multiple_threads_run(self) -> None:
+        fout = jsonlines.open(self._yaml_config["test_jsonl_path"], "w")
+
+        for round_idx in range(self._yaml_config["test_rounds"]):
+            round_id: str = f"Round{round_idx}"
+            self._update_llm_cache(round_idx)
+            self._evaluator.on_round_test_start(round_id)
+
+            self._logger.info(f"[{self._yaml_config['experiment_name']}] Round {round_idx} with parallel level set to {self._num_parallel}.")
+
+            with ThreadPoolExecutor(max_workers=self._num_parallel) as executor:
+                # Submit all qa to the executor for question answering
+                future_to_index = {
+                    executor.submit(self.answer, qa, q_idx): q_idx
+                    for q_idx, qa in enumerate(self._testing_suite)
+                }
+
+                qas_with_answer: List[BaseQaData] = [None] * len(self._testing_suite)
+                for future in as_completed(future_to_index):
+                    q_idx = future_to_index[future]
+                    qa = self._testing_suite[q_idx]
+                    try:
+                        output_dict = future.result()
+
+                        # Process output dict one by one
+                        assert "answer" in output_dict, "`answer` should be included in output_dict"
+                        answer = output_dict.pop("answer")
+                        qa.update_answer(answer)
+                        qa.answer_metadata.update(output_dict)
+                    except Exception as e:
+                        print(f"Exception answer {q_idx}-th question: {e}")
+                    qas_with_answer[q_idx] = qa
+
+                # Submit all qa to the executor for evaluation
+                evaluation_future_to_index = {
+                    executor.submit(self._evaluator.update_round_metrics, qa): q_idx
+                    for q_idx, qa in enumerate(qas_with_answer)
+                }
+                for future in as_completed(evaluation_future_to_index):
+                    q_idx = evaluation_future_to_index[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        print(f"Exception evaluate {q_idx}-th question answer: {e}")
+
+                for qa in qas_with_answer:
+                    fout.write(qa.as_dict())
+                    self._update_qas_metrics_table(qa)
+
+            self._evaluator.on_round_test_end(round_id)
+
+        self._evaluator.on_test_end()
+
+        fout.close()
+
+    def run(self) -> None:
+        """The QA testing flow."""
+        if self._num_parallel == 1:
+            return self._single_thread_run()
+        else:
+            return self._multiple_threads_run()
 
     def answer(self, qa: BaseQaData, question_idx: int) -> dict:
         """The decision making process when a Question is given.
