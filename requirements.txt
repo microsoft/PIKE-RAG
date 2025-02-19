@@ -12,6 +12,7 @@ pickledb
 rank_bm25
 rouge
 sentence-transformers
+spacy
 tabulate
 torch
 tqdm
