@@ -218,6 +218,8 @@ class QaWorkflow:
             self._logger.info(f"[{self._yaml_config['experiment_name']}] Round {round_idx} with parallel level set to {self._num_parallel}.")
 
             with ThreadPoolExecutor(max_workers=self._num_parallel) as executor:
+                qa_pbar = tqdm(total=len(self._testing_suite), desc=f"[{self._yaml_config['experiment_name']}] Round {round_idx}")
+
                 # Submit all qa to the executor for question answering
                 future_to_index = {
                     executor.submit(self.answer, qa, q_idx): q_idx
@@ -240,6 +242,12 @@ class QaWorkflow:
                         print(f"Exception answer {q_idx}-th question: {e}")
                     qas_with_answer[q_idx] = qa
 
+                    qa_pbar.update(1)
+
+                qa_pbar.close()
+
+                evaluation_pbar = tqdm(total=len(self._testing_suite), desc=f"[{self._yaml_config['experiment_name']}] Round {round_idx} Evaluation")
+
                 # Submit all qa to the executor for evaluation
                 evaluation_future_to_index = {
                     executor.submit(self._evaluator.update_round_metrics, qa): q_idx
@@ -251,6 +259,9 @@ class QaWorkflow:
                         future.result()
                     except Exception as e:
                         print(f"Exception evaluate {q_idx}-th question answer: {e}")
+                    evaluation_pbar.update(1)
+
+                evaluation_pbar.close()
 
                 for qa in qas_with_answer:
                     fout.write(qa.as_dict())

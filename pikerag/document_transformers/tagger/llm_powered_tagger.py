@@ -63,6 +63,8 @@ class LLMPoweredTagger(BaseDocumentTransformer):
 
     def _multiple_threads_transform(self, documents: Sequence[Document], **kwargs: Any) -> Sequence[Document]:
         self.logger.info(f"Tagging {len(documents)} with parallel level set to {self._num_parallel}.")
+
+        pbar = tqdm(total=len(documents), desc="Tagging Documents")
         # Create a ThreadPoolExecutor to manage a pool of threads
         with ThreadPoolExecutor(max_workers=self._num_parallel) as executor:
             # Submit all documents to the executor
@@ -84,6 +86,10 @@ class LLMPoweredTagger(BaseDocumentTransformer):
                     pass
 
                 ret_docs[doc_idx] = doc
+
+                pbar.update(1)
+
+        pbar.close()
 
         return ret_docs
 
