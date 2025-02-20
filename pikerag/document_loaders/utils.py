@@ -39,7 +39,7 @@ def get_loader(file_path: str, file_type: DocumentType = None) -> Optional[BaseL
 
     if inferred_file_type == DocumentType.csv:
         from langchain_community.document_loaders import CSVLoader
-        return CSVLoader(file_path)
+        return CSVLoader(file_path, encoding="utf-8", autodetect_encoding=True)
 
     elif inferred_file_type == DocumentType.excel:
         from langchain_community.document_loaders import UnstructuredExcelLoader
@@ -51,7 +51,7 @@ def get_loader(file_path: str, file_type: DocumentType = None) -> Optional[BaseL
 
     elif inferred_file_type == DocumentType.text:
         from langchain_community.document_loaders import TextLoader
-        return TextLoader(file_path)
+        return TextLoader(file_path, encoding="utf-8", autodetect_encoding=True)
 
     elif inferred_file_type == DocumentType.word:
         from langchain_community.document_loaders import UnstructuredWordDocumentLoader
