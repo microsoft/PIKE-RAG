@@ -9,7 +9,7 @@ from typing import Dict, List, Literal, Optional
 import uuid
 import jsonlines
 
-from data_process.utils.question_type import infer_question_type
+from open_benchmarks.utils.question_type import infer_question_type
 
 
 zipfile_id = "1tGdADlNjWFaHLeZZGShh2IRcpO6Lv24h"

@@ -8,10 +8,10 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 import numpy as np
 from tqdm import tqdm
 
-from data_process.utils.filepaths import get_doc_location_filepath, get_download_filepaths, get_title_status_filepath
-from data_process.utils.io import dump_to_json_file, load_from_json_file, dump_to_jsonlines, load_from_jsonlines
-from data_process.utils.stats import SOURCE_TYPES_TO_DOWNLOAD
-from data_process.utils import wikidata, wikipedia
+from open_benchmarks.utils.filepaths import get_doc_location_filepath, get_download_filepaths, get_title_status_filepath
+from open_benchmarks.utils.io import dump_to_json_file, load_from_json_file, dump_to_jsonlines, load_from_jsonlines
+from open_benchmarks.utils.stats import SOURCE_TYPES_TO_DOWNLOAD
+from open_benchmarks.utils import wikidata, wikipedia
 
 
 def load_caches(document_dir: str) -> Tuple[Dict[str, Dict[str, Dict[str, str]]], Dict[str, Dict[str, bool]]]:

@@ -10,8 +10,8 @@ from typing import Dict, List, Optional
 import uuid
 import jsonlines
 
-from data_process.dataset_utils.hotpotqa import get_supporting_facts
-from data_process.utils.question_type import infer_question_type
+from open_benchmarks.dataset_utils.hotpotqa import get_supporting_facts
+from open_benchmarks.utils.question_type import infer_question_type
 
 
 default_name: str = "data_ids_april7.zip?rlkey=u868q6h0jojw4djjg7ea65j46"

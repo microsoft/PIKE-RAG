@@ -6,7 +6,7 @@ from typing import List, Optional
 import uuid
 from datasets import Dataset, load_dataset
 
-from data_process.utils.question_type import infer_question_type
+from open_benchmarks.utils.question_type import infer_question_type
 
 
 def load_raw_data(dataset_dir: str, split: str) -> Dataset:

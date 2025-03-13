@@ -8,10 +8,10 @@ from typing import Dict, List, Optional
 
 import yaml
 
-from data_process.reformat_dataset import reformat_dataset
-from data_process.sample_dataset import sample_datasets
-from data_process.utils.filepaths import get_dataset_dir, get_document_dir, get_split_filepath
-from data_process.utils.stats import check_dataset_split
+from open_benchmarks.reformat_dataset import reformat_dataset
+from open_benchmarks.sample_dataset import sample_datasets
+from open_benchmarks.utils.filepaths import get_dataset_dir, get_document_dir, get_split_filepath
+from open_benchmarks.utils.stats import check_dataset_split
 
 
 def load_yaml_config(config_path: str, args: argparse.Namespace) -> dict:
