@@ -8,7 +8,7 @@ from typing import Dict, List, Literal, Optional, Tuple
 
 import uuid
 
-from data_process.utils.question_type import infer_question_type
+from open_benchmarks.utils.question_type import infer_question_type
 
 
 split2url: Dict[str, str] = {
