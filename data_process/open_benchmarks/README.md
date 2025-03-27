@@ -5,7 +5,7 @@
 Assume that you are in the directory `data_process/`:
 
 ```sh
-python main.py config/datasets.yaml
+python main.py open_benchmarks/config/datasets.yaml
 ```
 
 ## QA Protocol Overview

@@ -4,7 +4,7 @@
 import os
 from typing import Dict, Literal, Optional
 
-from data_process.utils.stats import FILE_TYPES_TO_DOWNLOAD, SOURCE_TYPES_TO_DOWNLOAD
+from open_benchmarks.utils.stats import FILE_TYPES_TO_DOWNLOAD, SOURCE_TYPES_TO_DOWNLOAD
 
 
 def get_dataset_dir(root_dir: str, dataset: str) -> str:

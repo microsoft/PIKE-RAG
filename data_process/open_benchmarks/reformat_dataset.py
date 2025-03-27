@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 
 def get_dataset_utils_module(dataset: str):
-    module = importlib.import_module(f"data_process.dataset_utils.{dataset}")
+    module = importlib.import_module(f"open_benchmarks.dataset_utils.{dataset}")
     return module
 
 

@@ -10,7 +10,7 @@ import aiohttp
 import wikipediaapi
 from wikipediaapi import WikipediaPage, WikipediaPageSection
 
-from data_process.utils.io import dump_bytes_to_file, dump_texts_to_file, async_dump_bytes_to_file
+from open_benchmarks.utils.io import dump_bytes_to_file, dump_texts_to_file, async_dump_bytes_to_file
 
 
 WIKI_WIKI = wikipediaapi.Wikipedia('Microsoft Research Asia PIKE-RAG', 'en')

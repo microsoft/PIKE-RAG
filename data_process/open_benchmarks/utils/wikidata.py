@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Tuple
 import aiohttp
 from bs4 import BeautifulSoup
 
-from data_process.utils.io import dump_bytes_to_file, dump_texts_to_file, async_dump_bytes_to_file
+from open_benchmarks.utils.io import dump_bytes_to_file, dump_texts_to_file, async_dump_bytes_to_file
 
 
 def parse_contents(html_content: str) -> dict:
