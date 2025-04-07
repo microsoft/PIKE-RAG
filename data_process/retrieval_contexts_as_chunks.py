@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import json
 import os
 from typing import Dict, List, Literal
 
@@ -37,7 +36,7 @@ def get_chunks_from_testing_suite(testing_suite: List[dict]) -> Dict[str, List[s
 
 if __name__ == "__main__":
     data_dir = "data"
-    datasets = ["hotpotqa", "two_wiki", "musique"]
+    datasets = ["musique"]
     for dataset in datasets:
         dataset_dir = os.path.join(data_dir, dataset)
         input_path = os.path.join(dataset_dir, "dev_500.jsonl")

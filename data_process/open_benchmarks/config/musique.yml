@@ -1,0 +1,26 @@
+# Save Path Setting
+################################################################################
+root_save_dir: data
+
+# Running Mode Setting
+################################################################################
+running_modes:
+  build_split: True
+  sample_sets: True
+
+# Sampling Setting
+################################################################################
+# random seed
+seed: 0223
+# first k samples to build, null to use all
+cut_off: null
+# the sample size of each subset
+sample_size_list:
+  - 500
+
+
+# Datasets Split Setting
+################################################################################
+# dataset and its corresponding splits to generate
+datasets:
+  musique: dev

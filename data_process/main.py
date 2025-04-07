@@ -42,9 +42,13 @@ if __name__ == "__main__":
     yaml_config: dict = load_yaml_config(args.config, args)
 
     # Read yaml configs
-    root_save_dir: str = yaml_config["root_save_dir"]
-    running_modes: Dict[str, bool] = yaml_config["running_modes"]
-    dataset2split: Dict[str, str] = yaml_config["datasets"]
+    root_save_dir: str = yaml_config.get("root_save_dir", "data")
+    running_modes: Dict[str, bool] = yaml_config.get("running_modes", {"build_split": True, "sample_sets": True})
+    dataset2split: Dict[str, str] = yaml_config.get("datasets", {"musique": "dev"})
+    sample_size_list: List[int] = yaml_config.get(
+        "sample_size_list",
+        list(range(100, 1001, 100)) + list(range(2000, 150001, 1000)),  # Default sample size list
+    )
 
     # Check dataset split setting.
     for dataset, split in dataset2split.items():
@@ -54,23 +58,20 @@ if __name__ == "__main__":
     create_dirs(root_save_dir, list(dataset2split.keys()))
 
     # Build up QA data.
-    if running_modes["build_split"]:
-        cut_off: Optional[int] = yaml_config["cut_off"]
+    if running_modes.get("build_split", False) is True:
+        cut_off: Optional[int] = yaml_config.get("cut_off", None)
         for dataset, split in dataset2split.items():
             dataset_dir: str = get_dataset_dir(root_save_dir, dataset)
             split_path: str = get_split_filepath(root_save_dir, dataset, split, sample_num=None)
             reformat_dataset(dataset, split, split_path, dataset_dir, cut_off)
 
     # Sample and download valid samples and docs for each dataset.
-    if running_modes["sample_sets"]:
+    if running_modes.get("sample_sets", False) is True:
         # Get and check the random seed.
-        random_seed: int = yaml_config["seed"]
+        random_seed: int = yaml_config.get("seed", 223)
         assert isinstance(random_seed, int), (
             f"Valid int must be provided as `seed` for random sampling but get {random_seed}"
         )
-
-        # Initialize sample size list, from small to large.
-        sample_size_list: List[int] = list(range(100, 1001, 100)) + list(range(2000, 150001, 1000))
 
         # Get the unified document dir.
         unified_doc_dir: str = get_document_dir(root_save_dir)
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         for dataset, split in dataset2split.items():
             sample_datasets(
                 dataset, split,
-                sample_size_list=sample_size_list,
+                sample_size_list=sorted(sample_size_list),  # from small to large
                 random_seed=random_seed,
                 document_dir=unified_doc_dir,
                 split_path_func=partial(get_split_filepath, root_dir=root_save_dir, dataset=dataset, split=split),
