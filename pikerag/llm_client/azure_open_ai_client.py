@@ -66,10 +66,13 @@ class AzureOpenAIClient(BaseLLMClient):
         super().__init__(location, auto_dump, logger, max_attempt, exponential_backoff_factor, unit_wait_time, **kwargs)
 
         client_configs = kwargs.get("client_config", {})
-        if client_configs.get("api_key", None) is None and os.environ.get("AZURE_OPENAI_API_KEY", None) is None:
-            client_configs["azure_ad_token_provider"] = get_azure_active_directory_token_provider()
+        # masked for local Ollama
+        #if client_configs.get("api_key", None) is None and os.environ.get("AZURE_OPENAI_API_KEY", None) is None:
+        #    client_configs["azure_ad_token_provider"] = get_azure_active_directory_token_provider()
 
-        self._client = AzureOpenAI(**client_configs)
+        #self._client = AzureOpenAI(**client_configs)
+        from openai import OpenAI
+        self._client = OpenAI(**client_configs)
 
     def _get_response_with_messages(self, messages: List[dict], **llm_config) -> ChatCompletion:
         response: ChatCompletion = None
