@@ -91,4 +91,34 @@ We also supporting existing third party Splitters like `langchain.text_splitter.
             ...  # Configure according to your need
     ```
 
-## Step 4.
+## Step 4. Atomic Question Tagging (Optional)
+
+In current release version and in this MuSiQue example, we show a distillation method -- atomic question tagging. To tag atomic questions to MuSiQue sample set, assume that you are in the root directory of PIKE-RAG:
+
+    ```sh
+    python examples/tagging.py examples/musique/configs/tagging.yml
+    ```
+
+Once running finishes, you can find file *dev_500_retrieval_contexts_as_chunks_with_atom_questions.jsonl* under *data/musique/*.
+
+## Step 5. Question Answering
+
+For testing suite with `answer_labels`, evaluation can be done along with the question answering. To run retrieval based on the tagged atomic questions on MuSiQue, assume that you are in the root directory of PIKE-RAG:
+
+    ```sh
+    python examples/qa.py examples/musique/configs/atomic_decompose.yml
+    ```
+
+Once the running finishes, you can find the answer data in file `logs/musique/atomic_decompose/atomic_decompose.jsonl`, where each line corresponds to one QA `dict` data, with a new `answer (type: str)` field and an `answer_metadata (type: dict)` field.
+
+If you want to test different algorithms, adjust the answer flow in Workflow and config it in *yaml file*. If the `answer_labels` are not ready in your testing suite, you can simply remove the `evaluator` part in the yaml config file to run question answering without evaluation.
+
+## Step 6. Evaluation Only (Optional)
+
+*Skip the part below if you only need to run MuSiQue.*
+
+To run the evaluation workflow for answer logging `jsonlines` file following the format as PIKE-RAG generated, modify the *examples/evaluate.yml* file or create a new one referring to it, assume that you are in the root directory of PIKE-RAG:
+
+    ```sh
+    python examples/evaluate.py examples/evaluate.yml
+    ```

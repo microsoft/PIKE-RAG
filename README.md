@@ -55,6 +55,8 @@ PIKE-RAG has been tested and significantly improved question answering accuracy 
 3. Modify the *yaml config* files and try the scripts under *examples/*, refer to [this document](docs/guides/examples.md);
 4. Build up your own pipeline and/or add your own components!
 
+🚀 Document ready [here](docs/guides/musique_example.md) for quick re-producing experiments on MuSiQue as shown in the technical report!
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
