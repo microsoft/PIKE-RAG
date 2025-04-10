@@ -19,12 +19,29 @@ from pikerag.utils.logger import Logger
 
 
 def get_azure_active_directory_token_provider() -> Callable[[], str]:
-    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    from azure.identity import AzureCliCredential, get_bearer_token_provider
 
-    credential = DefaultAzureCredential()
-    token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
+    scope = os.environ.get("AZURE_BEARER_TOKEN_SCOPE", None)
+    if scope is None:
+        scope = "https://cognitiveservices.azure.com/.default"
+        print(f"Env variable `AZURE_BEARER_TOKEN_SCOPE` not set, default to {scope}")
+
+    credential = AzureCliCredential()
+    token_provider = get_bearer_token_provider(credential, scope)
 
     return token_provider
+
+
+def verify_and_update_client_config(client_configs: dict) -> dict:
+    if client_configs.get("api_key", None) is None and os.environ.get("AZURE_OPENAI_API_KEY", None) is None:
+        if client_configs.get("azure_ad_token", None) is None and os.environ.get("AZURE_OPENAI_AD_TOKEN", None) is None:
+            print(f"Neither `api_key` nor `azure_ad_token` provided, try to get Azure token provider...")
+            client_configs["azure_ad_token_provider"] = get_azure_active_directory_token_provider()
+
+    if client_configs.get("azure_deployment", None) is None:
+        client_configs["azure_deployment"] = os.environ.get("AZURE_DEPLOYMENT_NAME", None)
+
+    return client_configs
 
 
 def parse_wait_time_from_error(error: openai.RateLimitError) -> Optional[int]:
@@ -65,10 +82,7 @@ class AzureOpenAIClient(BaseLLMClient):
         """
         super().__init__(location, auto_dump, logger, max_attempt, exponential_backoff_factor, unit_wait_time, **kwargs)
 
-        client_configs = kwargs.get("client_config", {})
-        if client_configs.get("api_key", None) is None and os.environ.get("AZURE_OPENAI_API_KEY", None) is None:
-            client_configs["azure_ad_token_provider"] = get_azure_active_directory_token_provider()
-
+        client_configs = verify_and_update_client_config(client_configs=kwargs.get("client_config", {}))
         self._client = AzureOpenAI(**client_configs)
 
     def _get_response_with_messages(self, messages: List[dict], **llm_config) -> ChatCompletion:
@@ -136,10 +150,7 @@ class AzureOpenAIClient(BaseLLMClient):
 
 class AzureOpenAIEmbedding(Embeddings):
     def __init__(self, **kwargs) -> None:
-        client_configs = kwargs.get("client_config", {})
-        if client_configs.get("api_key", None) is None and os.environ.get("AZURE_OPENAI_API_KEY", None) is None:
-            client_configs["azure_ad_token_provider"] = get_azure_active_directory_token_provider()
-
+        client_configs = verify_and_update_client_config(client_configs=kwargs.get("client_config", {}))
         self._client = AzureOpenAI(**client_configs)
 
         self._model = kwargs.get("model", "text-embedding-ada-002")
