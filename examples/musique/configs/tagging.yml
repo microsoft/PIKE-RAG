@@ -34,18 +34,35 @@ tagger:
     attr_name: atom_question_tagging_protocol
 
   tag_name: atom_questions
+  
+  # 多线程配置：设置并发处理的线程数
+  # 推荐值：2-8，根据你的API限制和机器性能调整
+  num_parallel: 4
+
+
+# Monitoring Setting (监控配置)
+################################################################################
+monitoring:
+  # 是否启用API监控
+  enable: true
+  
+  # RPM监控窗口时间（分钟）
+  rpm_window_minutes: 1
+  
+  # RPM限制警告阈值（可选，用于运行时警告）
+  rpm_warning_threshold: 50
 
 
 # LLM Setting
 ################################################################################
 llm_client:
   module_path: pikerag.llm_client
-  class_name: AzureOpenAIClient
+  class_name: CompanyOpenAIClient
   args: {}
 
   llm_config:
-    model: gpt-4
-    temperature: 0.7
+    model: gpt-4o-mini
+    temperature: 0
 
   cache_config:
     # location_prefix: will be joined with log_dir to generate the full path;

@@ -13,6 +13,7 @@ from pikerag.knowledge_retrievers import BaseQaRetriever
 from pikerag.llm_client.base import BaseLLMClient
 from pikerag.utils.config_loader import load_class, load_protocol
 from pikerag.utils.logger import Logger
+from pikerag.utils.monitor import create_monitor
 from pikerag.workflows.common import BaseQaData, GenerationQaData, MultipleChoiceQaData
 from pikerag.workflows.evaluation.evaluator import Evaluator
 
@@ -23,6 +24,8 @@ class QaWorkflow:
         self._yaml_config: dict = yaml_config
 
         self._init_logger()
+
+        self._init_monitor()
 
         self._load_testing_suite()
 
@@ -40,6 +43,23 @@ class QaWorkflow:
             name=self._yaml_config["experiment_name"],
             dump_folder=self._yaml_config["log_dir"],
         )
+
+    def _init_monitor(self) -> None:
+        """初始化API监控器"""
+        monitoring_config = self._yaml_config.get("monitoring", {})
+        enable_monitoring = monitoring_config.get("enable", True)
+        
+        if enable_monitoring:
+            self._monitor = create_monitor(
+                logger=self._logger,
+                window_minutes=monitoring_config.get("rpm_window_minutes", 1)
+            )
+            if hasattr(self, '_logger') and self._logger:
+                self._logger.info(f"✅ API监控器已在 {self.__class__.__name__} 中启用", tag=self.__class__.__name__)
+        else:
+            self._monitor = None
+            if hasattr(self, '_logger') and self._logger:
+                self._logger.info(f"❌ API监控器已在 {self.__class__.__name__} 中禁用", tag=self.__class__.__name__)
 
     def _load_testing_suite(self) -> None:
         # Dynamically load the test loading function, then load testing suite
@@ -95,6 +115,12 @@ class QaWorkflow:
             **llm_client_config.get("args", {}),
         )
 
+        # 设置监控器到客户端
+        if hasattr(self, '_monitor') and self._monitor and hasattr(self._client, 'set_monitor'):
+            self._client.set_monitor(self._monitor)
+
+        self._client_logger.info("LLM Client Inited.")
+
     def _update_llm_cache(self, round_idx: int) -> None:
         # Update cache location for different rounds.
         location = os.path.join(
@@ -125,6 +151,8 @@ class QaWorkflow:
             log_dir=self._yaml_config["log_dir"],
             main_logger=self._logger,
         )
+        self._evaluator_logger = Logger("Evaluator", dump_folder=self._yaml_config["log_dir"], extension_name="csv")
+        self._evaluator_logger.info("Evaluator Inited.")
         return
 
     def _init_qas_metrics_table(self) -> None:
@@ -222,8 +250,8 @@ class QaWorkflow:
 
                 # Submit all qa to the executor for question answering
                 future_to_index = {
-                    executor.submit(self.answer, qa, q_idx): q_idx
-                    for q_idx, qa in enumerate(self._testing_suite)
+                    executor.submit(self.answer, qa, q_idx):
+                    q_idx for q_idx, qa in enumerate(self._testing_suite)
                 }
 
                 qas_with_answer: List[BaseQaData] = [None] * len(self._testing_suite)
@@ -250,8 +278,8 @@ class QaWorkflow:
 
                 # Submit all qa to the executor for evaluation
                 evaluation_future_to_index = {
-                    executor.submit(self._evaluator.update_round_metrics, qa): q_idx
-                    for q_idx, qa in enumerate(qas_with_answer)
+                    executor.submit(self._evaluator.update_round_metrics, qa):
+                    q_idx for q_idx, qa in enumerate(qas_with_answer)
                 }
                 for future in as_completed(evaluation_future_to_index):
                     q_idx = evaluation_future_to_index[future]
@@ -275,10 +303,34 @@ class QaWorkflow:
 
     def run(self) -> None:
         """The QA testing flow."""
-        if self._num_parallel == 1:
-            return self._single_thread_run()
-        else:
-            return self._multiple_threads_run()
+        if hasattr(self, '_monitor') and self._monitor:
+            self._monitor.start_monitoring()
+            if hasattr(self, '_logger') and self._logger:
+                self._logger.info(f"🚀 开始 {self.__class__.__name__} 任务", tag=self.__class__.__name__)
+
+        try:
+            if self._num_parallel == 1:
+                self._single_thread_run()
+            else:
+                self._multiple_threads_run()
+        except Exception as e:
+            if hasattr(self, '_logger') and self._logger:
+                self._logger.error(f"{self.__class__.__name__} 任务执行失败: {e}", tag=self.__class__.__name__)
+            raise
+        finally:
+            if hasattr(self, '_monitor') and self._monitor:
+                self._monitor.stop_monitoring()
+                self._monitor.print_summary()
+                
+                log_dir = self._yaml_config.get("log_dir", ".")
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir, exist_ok=True)
+                report_filename = f"{self.__class__.__name__}_api_monitoring_report.json"
+                report_path = os.path.join(log_dir, report_filename)
+                self._monitor.save_detailed_report(report_path)
+                
+                if hasattr(self, '_logger') and self._logger:
+                    self._logger.info(f"✅ {self.__class__.__name__} 任务完成", tag=self.__class__.__name__)
 
     def answer(self, qa: BaseQaData, question_idx: int) -> dict:
         """The decision making process when a Question is given.
@@ -299,3 +351,25 @@ class QaWorkflow:
             output_dict["reference_chunks"] = reference_chunks
 
         return output_dict
+
+    def process_dataset(self) -> None:
+        """The main entry of the QA Workflow. It will load qa data from file and process them one by one."""
+        # This method might be used internally or by specific sub-classes in a different context than the main `run`.
+        # For general QA workflow execution via `examples/qa.py`, `run()` is the entry point.
+        # If monitoring is desired for direct calls to `process_dataset`, it should be added here explicitly
+        # or this method should be refactored to be called by the monitored `run`.
+
+        for idx, qa_data in tqdm(
+            enumerate(self._qa_dataset), # Assuming self._qa_dataset is populated if this method is used
+            total=len(self._qa_dataset) if hasattr(self, '_qa_dataset') else 0,
+            desc=f"{self.__class__.__name__} Processing Dataset (Direct Call)",
+        ):
+            self._logger.info(f"Processing QA {idx:03}", tag=self.__class__.__name__)
+            output = self.answer(qa_data, idx)
+            qa_data.update_answer(output["answer"])
+            # self.update_answer_info(output, qa_data, idx) # This was part of original code, might need context
+            # self._dump_to_jsonl() # This was part of original code, might need context
+
+        if self._evaluator is not None and hasattr(self, '_qa_dataset'):
+            self._evaluator.evaluate(self._qa_dataset, self._main_metric_name)
+        return

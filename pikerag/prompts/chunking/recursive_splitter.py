@@ -33,6 +33,32 @@ The output should contain the summary, do not add any redundant information.
 )
 
 
+chunk_summary_template_cn = MessageTemplate(
+    template=[
+        ("system", "你是一个擅长文档摘要的有用AI助手。"),
+        ("user", """
+# 原文来源
+
+原文来自{filename}。
+
+# 原文
+
+"部分原文"：
+{content}
+
+# 任务
+
+您的任务是总结上述"部分原文"
+
+# 输出
+
+输出应包含摘要，不要添加任何冗余信息。
+""".strip()),
+    ],
+    input_variables=["filename", "content"],
+)
+
+
 chunk_summary_refinement_template = MessageTemplate(
     template=[
         ("system", "You are a helpful AI assistant good at summary refinement."),
@@ -47,6 +73,35 @@ generalization of "partial original text":
 {summary}
 
 "partial original text":
+{content}
+
+# Task
+
+Your task is to summarize the above "partial original text"
+
+# Output
+
+The output should contain the summary, do not add any redundant information.
+""".strip()),
+    ],
+    input_variables=["filename", "summary", "content"],
+)
+
+
+chunk_summary_refinement_template_cn = MessageTemplate(
+    template=[
+        ("system", "你是一个擅长摘要精炼的有用AI助手。"),
+        ("user", """
+# 原文来源
+
+原文来自{filename}。
+
+# Original text
+
+"部分原文"的概括：
+{summary}
+
+"部分原文"：
 {content}
 
 # Task
@@ -108,17 +163,83 @@ Thinking: According to the task requirements, carefully analyze the structure of
 )
 
 
+chunk_resplit_template_cn = MessageTemplate(
+    template=[
+        ("system", "你是一个擅长文档分块的有用AI助手。"),
+        ("user", """
+# 原文来源
+
+原文来自{filename}。
+
+# 原文
+
+"部分原文"的"第一部分"的概括：
+{summary}
+
+"部分原文"：
+{content}
+
+# 任务
+
+您的任务：
+1. 理解"部分原文"的"第一部分"的概括和"部分原文"；
+2. 分析"部分原文"的结构，将"部分原文"严格分割成"第一部分"和"第二部分"，不能遗漏任何内容。
+3. 提供"第一部分"的"结束行号"，注意"第一部分"的定义是：从第"0"行到第"结束行号"+1行的"部分原文"的所有内容，其中不允许为空。请注意这里的最大行号是{max_line_number}。
+4. 总结"第一部分"。
+5. 对于"第二部分"，考虑上下文和总结"第一部分"的主要内容，请注意"第一部分"的内容定义为：第"结束行号"+1行之后的所有"部分原文"内容。
+
+# 输出
+
+输出应严格遵循以下格式，不要添加任何冗余信息。
+
+思考：根据任务要求，仔细分析上述"部分原文"的结构，思考如何合理地将其分成两部分，并输出您的思考过程。
+
+<result>
+<chunk>
+  <endline>结束行号，一个非负数，表示"第一部分"的结束行。第一部分将包含此行。</endline>
+  <summary>"第一部分"的摘要。以"这部分的主要内容是"开头。可以参考"部分原文"的概括</summary>
+</chunk>
+<chunk>
+  <summary>结合上下文和"第一部分"的概括来总结"第二部分"的主要内容。以"这部分的主要内容是"开头。</summary>
+</chunk>
+</result>
+""".strip()),
+    ],
+    input_variables=["filename", "summary", "content", "max_line_number"],
+)
+
+
 chunk_summary_protocol = CommunicationProtocol(
     template=chunk_summary_template,
     parser=BaseContentParser(),
 )
+
+
+chunk_summary_protocol_cn = CommunicationProtocol(
+    template=chunk_summary_template_cn,
+    parser=BaseContentParser(),
+)
+
 
 chunk_summary_refinement_protocol = CommunicationProtocol(
     template=chunk_summary_refinement_template,
     parser=BaseContentParser(),
 )
 
+
+chunk_summary_refinement_protocol_cn = CommunicationProtocol(
+    template=chunk_summary_refinement_template_cn,
+    parser=BaseContentParser(),
+)
+
+
 chunk_resplit_protocol = CommunicationProtocol(
     template=chunk_resplit_template,
+    parser=ResplitParser(),
+)
+
+
+chunk_resplit_protocol_cn = CommunicationProtocol(
+    template=chunk_resplit_template_cn,
     parser=ResplitParser(),
 )

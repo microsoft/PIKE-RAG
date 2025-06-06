@@ -41,6 +41,37 @@ The output should strictly follow the format below, do not add any redundant inf
 )
 
 
+multiple_choice_qa_template_cn = MessageTemplate(
+    template=[
+        ("system", "你是一个擅长{knowledge_domain}知识的有用助手，能够帮助人们回答{knowledge_domain}问题。"),
+        ("user", """
+# 任务
+您的任务是逐步思考，然后从给定选项中选择正确的选项，所选选项应该是正确的且最适合回答给定问题的。如果您没有足够的数据来确定，请从给定选项中随机选择一个选项。
+
+# 输出格式
+输出应严格遵循以下格式，不要添加任何冗余信息。
+
+<result>
+  <thinking>您对给定问题的思考过程。</thinking>
+  <answer>
+    <mask>选择的选项掩码。请注意只允许一个掩码。</mask>
+    <option>与所选选项掩码对应的选项详情。</option>
+  </answer>
+</result>
+
+# 问题
+{content}
+
+# 选项
+{options_str}
+
+# 思考和回答
+""".strip()),
+    ],
+    input_variables=["knowledge_domain", "content", "options_str"],
+)
+
+
 multiple_choice_qa_with_reference_template = MessageTemplate(
     template=[
         ("system", "You are an helpful assistant good at {knowledge_domain} knowledge that can help people answer {knowledge_domain} questions."),
@@ -69,6 +100,42 @@ The output should strictly follow the format below, do not add any redundant inf
 {references_str}
 
 # Thinking and Answer
+""".strip()),
+    ],
+    input_variables=["knowledge_domain", "content", "options_str", "references_str"],
+)
+
+
+multiple_choice_qa_with_reference_template_cn = MessageTemplate(
+    template=[
+        ("system", "你是一个擅长{knowledge_domain}知识的有用助手，能够帮助人们回答{knowledge_domain}问题。"),
+        ("user", """
+# 任务
+您的任务是逐步思考，然后从给定选项中选择正确的选项，所选选项应该是正确的且最适合回答给定问题的。
+         在思考和回答时可以参考提供的参考资料。请注意，参考资料可能与问题相关，也可能不相关。
+         如果您没有足够的信息来确定，请从给定选项中随机选择一个选项。
+
+# 输出格式
+输出应严格遵循以下格式，不要添加任何冗余信息。
+
+<result>
+  <thinking>您对给定问题的思考过程。</thinking>
+  <answer>
+    <mask>选择的选项掩码。请注意只允许一个掩码。</mask>
+    <option>与所选选项掩码对应的选项详情。</option>
+  </answer>
+</result>
+
+# 问题
+{content}
+
+# 选项
+{options_str}
+
+# 参考资料
+{references_str}
+
+# 思考和回答
 """.strip()),
     ],
     input_variables=["knowledge_domain", "content", "options_str", "references_str"],
@@ -124,6 +191,61 @@ The output should strictly follow the format below, do not add any redundant inf
 </result>
 
 # Thinking and Answer
+""".strip()),
+    ],
+    input_variables=["knowledge_domain", "content", "options_str", "references_str"],
+)
+
+
+# TODO: update the template & protocol to fit for both single choice and multiple choice.
+multiple_choice_qa_with_reference_and_review_template_cn = MessageTemplate(
+    template=[
+        ("system", "你是一个擅长{knowledge_domain}知识的有用助手，能够帮助人们回答{knowledge_domain}问题。"),
+        ("user", """
+# 任务
+您的任务是逐步思考，然后从给定选项中选择正确的选项，所选选项应该是正确的且最适合回答给定问题的。在思考和回答时可以参考提供的参考资料。请注意，参考资料可能与问题相关，也可能不相关。如果您没有足够的信息来确定，请从给定选项中随机选择一个选项。
+
+# 输出格式
+输出应严格遵循以下格式，不要添加任何冗余信息。
+
+<result>
+  <thinking>您对给定问题的思考过程。</thinking>
+  <answer>
+    <mask>选择的选项掩码。请注意只允许一个掩码。</mask>
+    <option>与所选选项掩码对应的选项详情。</option>
+  </answer>
+</result>
+
+# 问题
+{content}
+
+# 选项
+{options_str}
+
+# 参考资料
+{references_str}
+
+# 回顾
+让我们现在再次回顾问题、选项和输出格式：
+
+# 问题
+{content}
+
+# 选项
+{options_str}
+
+# 输出格式
+输出应严格遵循以下格式，不要添加任何冗余信息。
+
+<result>
+  <thinking>您对给定问题的思考过程。</thinking>
+  <answer>
+    <mask>选择的选项掩码。请注意只允许一个掩码。</mask>
+    <option>与所选选项掩码对应的选项详情。</option>
+  </answer>
+</result>
+
+# 思考和回答
 """.strip()),
     ],
     input_variables=["knowledge_domain", "content", "options_str", "references_str"],
@@ -219,13 +341,31 @@ multiple_choice_qa_protocol = CommunicationProtocol(
 )
 
 
+multiple_choice_qa_protocol_cn = CommunicationProtocol(
+    template=multiple_choice_qa_template_cn,
+    parser=MultipleChoiceQaParser(),
+)
+
+
 multiple_choice_qa_with_reference_protocol = CommunicationProtocol(
     template=multiple_choice_qa_with_reference_template,
     parser=MultipleChoiceQaWithReferenceParser(),
 )
 
 
+multiple_choice_qa_with_reference_protocol_cn = CommunicationProtocol(
+    template=multiple_choice_qa_with_reference_template_cn,
+    parser=MultipleChoiceQaWithReferenceParser(),
+)
+
+
 multiple_choice_qa_with_reference_and_review_protocol = CommunicationProtocol(
     template=multiple_choice_qa_with_reference_and_review_template,
+    parser=MultipleChoiceQaWithReferenceParser(),
+)
+
+
+multiple_choice_qa_with_reference_and_review_protocol_cn = CommunicationProtocol(
+    template=multiple_choice_qa_with_reference_and_review_template_cn,
     parser=MultipleChoiceQaWithReferenceParser(),
 )

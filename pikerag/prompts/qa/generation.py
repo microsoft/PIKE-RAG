@@ -8,6 +8,7 @@ from pikerag.utils.json_parser import parse_json
 
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant on question answering."
+DEFAULT_SYSTEM_PROMPT_CN = "你是一个在问答方面很有帮助的AI助手。"
 
 generation_qa_template = MessageTemplate(
     template=[
@@ -32,6 +33,33 @@ Let's think step by step.
     input_variables=["content"],
     partial_variables={
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
+)
+
+
+generation_qa_template_cn = MessageTemplate(
+    template=[
+        ("system", "{system_prompt}"),
+        ("user", """
+# 任务
+您的任务是对给定的问题给出答案。
+
+# 输出格式
+您的输出应严格遵循以下格式。确保您的输出可以被Python中的json解析。
+{{
+    "answer": <字符串。您的答案。>,
+    "rationale": <字符串。您答案背后的理由。>
+}}
+
+# 问题
+{content}
+
+让我们逐步思考。
+""".strip()),
+    ],
+    input_variables=["content"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT_CN,
     },
 )
 
@@ -63,6 +91,37 @@ Let's think step by step.
     input_variables=["content", "context_if_any", "yes_or_no_limit"],
     partial_variables={
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
+)
+
+
+generation_qa_with_reference_template_cn = MessageTemplate(
+    template=[
+        ("system", "{system_prompt}"),
+        ("user", """
+# 任务
+您的任务是在给定上下文（如果有的话）的基础上回答问题。
+为了回答最后的问题，您需要首先阅读提供的上下文，然后给出最终答案。
+
+# 输出格式
+您的输出应严格遵循以下格式。确保您的输出可以被Python中的json解析。
+{{
+    "answer": <字符串。您的答案。>,
+    "rationale": <字符串。您选择背后的理由。>
+}}
+
+# 上下文（如果有的话）
+{context_if_any}
+
+# 问题
+{content}{yes_or_no_limit}
+
+让我们逐步思考。
+""".strip()),
+    ],
+    input_variables=["content", "context_if_any", "yes_or_no_limit"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT_CN,
     },
 )
 
@@ -112,7 +171,19 @@ generation_qa_protocol = CommunicationProtocol(
 )
 
 
+generation_qa_protocol_cn = CommunicationProtocol(
+    template=generation_qa_template_cn,
+    parser=GenerationQaParser(),
+)
+
+
 generation_qa_with_reference_protocol = CommunicationProtocol(
     template=generation_qa_with_reference_template,
+    parser=GenerationQaParser(),
+)
+
+
+generation_qa_with_reference_protocol_cn = CommunicationProtocol(
+    template=generation_qa_with_reference_template_cn,
     parser=GenerationQaParser(),
 )

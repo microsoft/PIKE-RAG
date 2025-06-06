@@ -56,16 +56,34 @@ original_question_answering_protocol:
   protocol_name: final_qa_protocol
 
 
+## LLM Setting
+#################################################################################
+#llm_client:
+#  module_path: pikerag.llm_client
+#  # available class_name: AzureMetaLlamaClient, AzureOpenAIClient, HFMetaLlamaClient
+#  class_name: AzureOpenAIClient
+#  args: {}
+#
+#  llm_config:
+#    model: gpt-4
+#    temperature: 0
+#
+#  cache_config:
+#    # location_prefix: will be joined with log_dir to generate the full path;
+#    #   if set to null, the experiment_name would be used
+#    location_prefix: null
+#    auto_dump: True
+#
+
 # LLM Setting
 ################################################################################
 llm_client:
   module_path: pikerag.llm_client
-  # available class_name: AzureMetaLlamaClient, AzureOpenAIClient, HFMetaLlamaClient
-  class_name: AzureOpenAIClient
+  class_name: CompanyOpenAIClient
   args: {}
 
   llm_config:
-    model: gpt-4
+    model: gpt-4o-mini
     temperature: 0
 
   cache_config:
@@ -73,7 +91,6 @@ llm_client:
     #   if set to null, the experiment_name would be used
     location_prefix: null
     auto_dump: True
-
 
 # Retriever Setting
 ################################################################################
@@ -122,3 +139,17 @@ evaluator:
     - Precision
     - Recall
     - LLM
+
+
+# Monitoring Setting (监控配置)
+################################################################################
+monitoring:
+  # 是否启用API监控
+  enable: true
+
+  # RPM监控窗口时间（分钟）
+  rpm_window_minutes: 1
+
+  # RPM限制警告阈值（可选，用于运行时警告）
+  rpm_warning_threshold: 50
+

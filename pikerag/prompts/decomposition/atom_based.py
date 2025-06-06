@@ -5,11 +5,12 @@ from typing import Dict, List, Tuple
 
 from pikerag.knowledge_retrievers.chunk_atom_retriever import AtomRetrievalInfo
 from pikerag.prompts import MessageTemplate, BaseContentParser, CommunicationProtocol
-from pikerag.prompts.qa.generation import generation_qa_with_reference_template, GenerationQaParser
+from pikerag.prompts.qa.generation import generation_qa_with_reference_template, generation_qa_with_reference_template_cn, GenerationQaParser
 from pikerag.utils.json_parser import parse_json
 
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant on question answering."
+DEFAULT_SYSTEM_PROMPT_CN = "你是一个在问答方面很有帮助的AI助手。"
 
 
 def atom_infos_to_context_string(chosen_atom_infos: List[AtomRetrievalInfo], limit: int=80000) -> str:
@@ -64,6 +65,37 @@ The context we already have:
 )
 
 
+question_decomposition_template_cn = MessageTemplate(
+    template=[
+        ("system", "{system_prompt}"),
+        ("user", """
+# 任务
+您的任务是分析提供的上下文，然后提出有助于您更好地回答问题的原子性子问题。请从不同角度思考，提出尽可能多的多样化问题。
+
+# 输出格式
+请按照以下JSON格式输出：
+{{
+    "thinking": <字符串。您对此任务的思考，包括对问题和给定上下文的分析。>,
+    "sub_questions": <字符串列表。表示您需要的子问题。>
+}}
+
+# 上下文
+我们已有的上下文：
+{chosen_context}
+
+# 问题
+{content}
+
+# 您的输出：
+""".strip()),
+    ],
+    input_variables=["content", "chosen_context"],
+    partial_variables={
+        "system_prompt": "你是一个擅长问题分解的有用AI助手。",
+    },
+)
+
+
 class QuestionDecompositionParser(BaseContentParser):
     def encode(self, content: str, chosen_atom_infos: List[AtomRetrievalInfo], **kwargs) -> Tuple[str, dict]:
         context = atom_infos_to_context_string(chosen_atom_infos)
@@ -84,6 +116,12 @@ class QuestionDecompositionParser(BaseContentParser):
 
 question_decompose_protocol = CommunicationProtocol(
     template=question_decomposition_template,
+    parser=QuestionDecompositionParser(),
+)
+
+
+question_decompose_protocol_cn = CommunicationProtocol(
+    template=question_decomposition_template_cn,
     parser=QuestionDecompositionParser(),
 )
 
@@ -119,6 +157,40 @@ The context we already have:
     input_variables=["content", "num_atoms", "chosen_context", "atom_list_str"],
     partial_variables={
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
+)
+
+
+atom_question_selection_template_cn = MessageTemplate(
+    template=[
+        ("system", "{system_prompt}"),
+        ("user", """
+# 任务
+您的任务是分析提供的上下文，然后决定哪些子问题在您回答给定问题之前可能有用。从给定的问题列表中选择一个最相关的子问题，避免选择已经可以通过给定上下文或您自己的知识回答的子问题。
+
+# 输出格式
+请按照以下JSON格式输出：
+{{
+    "thinking": <字符串。您对此选择任务的思考。>,
+    "question_idx": <整数，表示从1到{num_atoms}的子问题索引。>
+}}
+
+# 上下文
+我们已有的上下文：
+{chosen_context}
+
+# 您可以选择的子问题
+{atom_list_str}
+
+# 问题
+{content}
+
+# 您的输出：
+""".strip()),
+    ],
+    input_variables=["content", "num_atoms", "chosen_context", "atom_list_str"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT_CN,
     },
 )
 
@@ -166,6 +238,12 @@ atom_question_selection_protocol = CommunicationProtocol(
     parser=AtomQuestionSelectionParser(),
 )
 
+
+atom_question_selection_protocol_cn = CommunicationProtocol(
+    template=atom_question_selection_template_cn,
+    parser=AtomQuestionSelectionParser(),
+)
+
 ################################################################################
 
 chunk_selection_template = MessageTemplate(
@@ -198,6 +276,40 @@ The context we already have:
     input_variables=["content", "chosen_context", "num_chunks", "chunk_list_str"],
     partial_variables={
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
+    },
+)
+
+
+chunk_selection_template_cn = MessageTemplate(
+    template=[
+        ("system", "{system_prompt}"),
+        ("user", """
+# 任务
+您的任务是分析提供的上下文，然后决定列表中哪个段落对您回答给定问题可能有用。从给定的段落列表中选择一个最相关的段落。
+
+# 输出格式
+请按照以下JSON格式输出：
+{{
+    "thinking": <字符串。您对此选择任务的思考。>,
+    "paragraph_idx": <整数。从1到{num_chunks}的段落索引。>
+}}
+
+# 上下文
+我们已有的上下文：
+{chosen_context}
+
+# 您可以选择的段落列表
+{chunk_list_str}
+
+# 问题
+{content}
+
+# 您的输出：
+""".strip()),
+    ],
+    input_variables=["content", "chosen_context", "num_chunks", "chunk_list_str"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT_CN,
     },
 )
 
@@ -248,6 +360,12 @@ chunk_selection_protocol = CommunicationProtocol(
     parser=ChunkSelectionParser(),
 )
 
+
+chunk_selection_protocol_cn = CommunicationProtocol(
+    template=chunk_selection_template_cn,
+    parser=ChunkSelectionParser(),
+)
+
 ################################################################################
 
 class ContextQaParser(GenerationQaParser):
@@ -264,5 +382,11 @@ class ContextQaParser(GenerationQaParser):
 
 final_qa_protocol = CommunicationProtocol(
     template=generation_qa_with_reference_template,
+    parser=ContextQaParser(),
+)
+
+
+final_qa_protocol_cn = CommunicationProtocol(
+    template=generation_qa_with_reference_template_cn,
     parser=ContextQaParser(),
 )

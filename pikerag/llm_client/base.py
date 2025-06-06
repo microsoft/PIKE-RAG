@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pickledb import PickleDB
 
 from pikerag.utils.logger import Logger
+from pikerag.utils.monitor import get_global_monitor
 
 
 class BaseLLMClient(object):
@@ -41,6 +42,22 @@ class BaseLLMClient(object):
             )
 
         self.logger = logger
+        
+        # 监控功能
+        self._enable_monitoring = kwargs.get('enable_monitoring', True)
+        self._monitor = None
+
+        # If monitoring enabled for this client instance, try to pick up a global monitor
+        # This is useful if this client is instantiated by a sub-component
+        # and not directly managed by a workflow that calls `set_monitor`.
+        if self._enable_monitoring:
+            global_monitor_instance = get_global_monitor()
+            if global_monitor_instance:
+                self._monitor = global_monitor_instance
+
+    def set_monitor(self, monitor):
+        """设置监控器"""
+        self._monitor = monitor
 
     def warning(self, warning_message: str) -> None:
         if self.logger is not None:
@@ -99,7 +116,6 @@ class BaseLLMClient(object):
 
     def generate_content_with_messages(self, messages: List[dict], **llm_config) -> str:
         # TODO: utilize self.llm_config if None provided in call.
-        # TODO: add functions to get tokens, logprobs.
         content = self._get_cache(messages, llm_config)
 
         if content is False or content is None or content == "":
@@ -107,12 +123,35 @@ class BaseLLMClient(object):
                 self.logger.debug(msg=f"{datetime.now()} create completion...", tag=self.NAME)
                 start_time = time.time()
 
-            response = self._get_response_with_messages(messages, **llm_config)
+            response = None
+            success = False
+            error_type = None
+            
+            try:
+                response = self._get_response_with_messages(messages, **llm_config)
+                success = response is not None
+            except Exception as e:
+                error_type = type(e).__name__
+                success = False
+                if self.logger is not None:
+                    self.logger.warning(f"请求失败: {e}", tag=self.NAME)
+
+            duration = time.time() - start_time if self.logger is not None else 0
+            
+            # 记录监控信息
+            if self._enable_monitoring and self._monitor:
+                model_name = llm_config.get('model', 'unknown')
+                self._monitor.record_request(
+                    duration=duration,
+                    response=response,
+                    model=model_name,
+                    success=success,
+                    error_type=error_type
+                )
 
             if self.logger is not None:
-                time_used = time.time() - start_time
                 result = "receive response" if response is not None else "request failed"
-                self.logger.debug(msg=f"{datetime.now()} {result}, time spent: {time_used} s.", tag=self.NAME)
+                self.logger.debug(msg=f"{datetime.now()} {result}, time spent: {duration:.2f} s.", tag=self.NAME)
 
             if response is None:
                 self.warning("None returned as response")

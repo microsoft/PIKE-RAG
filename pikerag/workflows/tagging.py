@@ -12,6 +12,7 @@ from pikerag.llm_client import BaseLLMClient
 from pikerag.utils.config_loader import load_protocol
 from pikerag.utils.logger import Logger
 from pikerag.utils.walker import list_files_recursively
+from pikerag.utils.monitor import create_monitor, get_global_monitor
 
 
 class TaggingWorkflow:
@@ -19,6 +20,9 @@ class TaggingWorkflow:
         self._yaml_config: dict = yaml_config
 
         self._init_logger()
+
+        # 初始化监控器
+        self._init_monitor()
 
         self._init_tagger()
 
@@ -31,6 +35,22 @@ class TaggingWorkflow:
             name=self._yaml_config["experiment_name"],
             dump_folder=self._yaml_config["log_dir"],
         )
+
+    def _init_monitor(self) -> None:
+        """初始化API监控器"""
+        # 创建监控器
+        monitoring_config = self._yaml_config.get("monitoring", {})
+        enable_monitoring = monitoring_config.get("enable", True)
+        
+        if enable_monitoring:
+            self._monitor = create_monitor(
+                logger=self._logger,
+                window_minutes=monitoring_config.get("rpm_window_minutes", 1)
+            )
+            self._logger.info("✅ API监控器已启用", tag="TaggingWorkflow")
+        else:
+            self._monitor = None
+            self._logger.info("❌ API监控器已禁用", tag="TaggingWorkflow")
 
     def _init_llm_client(self) -> None:
         # Dynamically import the LLM client.
@@ -52,6 +72,10 @@ class TaggingWorkflow:
             llm_config=llm_client_config["llm_config"],
             **llm_client_config.get("args", {}),
         )
+        
+        # 设置监控器到客户端
+        if self._monitor:
+            self._client.set_monitor(self._monitor)
 
         return
 
@@ -134,8 +158,31 @@ class TaggingWorkflow:
         self._save_func(tagged_docs, **self._save_args)
 
     def run(self) -> None:
-        if self._file_infos is None:
-            self._run_single()
-        else:
-            self._run_multi()
+        # 开始监控
+        if self._monitor:
+            self._monitor.start_monitoring()
+            self._logger.info("🚀 开始标注任务", tag="TaggingWorkflow")
+
+        try:
+            if self._file_infos is None:
+                self._run_single()
+            else:
+                self._run_multi()
+        except Exception as e:
+            self._logger.error(f"标注任务执行失败: {e}", tag="TaggingWorkflow")
+            raise
+        finally:
+            # 结束监控并生成报告
+            if self._monitor:
+                self._monitor.stop_monitoring()
+                
+                # 打印统计摘要
+                self._monitor.print_summary()
+                
+                # 保存详细报告
+                report_path = os.path.join(self._yaml_config["log_dir"], "api_monitoring_report.json")
+                self._monitor.save_detailed_report(report_path)
+                
+                self._logger.info("✅ 标注任务完成", tag="TaggingWorkflow")
+
         return

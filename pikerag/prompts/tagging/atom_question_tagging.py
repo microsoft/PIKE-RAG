@@ -7,6 +7,7 @@ from pikerag.prompts import BaseContentParser, CommunicationProtocol, MessageTem
 
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant good at content understanding and asking question."
+DEFAULT_SYSTEM_PROMPT_CN = "你是一个擅长内容理解和提问的有用AI助手。"
 
 
 atom_question_tagging_template = MessageTemplate(
@@ -32,6 +33,29 @@ Output your answers line by line, with each question on a new line, without item
 )
 
 
+atom_question_tagging_template_cn = MessageTemplate(
+    template=[
+        ("system", "{system_prompt}"),
+        ("user", """
+# 任务
+您的任务是提取尽可能多的与给定内容相关且可以被该内容回答的问题。请尽量保持多样性，避免提取重复或相似的问题。确保您的问题包含必要的实体名称，避免使用代词如它、他、她、他们、该公司、该人等。
+
+# 输出格式
+逐行输出您的答案，每个问题占一行，不使用项目符号或数字。
+
+# 内容
+{content}
+
+# 输出：
+""".strip()),
+    ],
+    input_variables=["content"],
+    partial_variables={
+        "system_prompt": DEFAULT_SYSTEM_PROMPT_CN,
+    },
+)
+
+
 class AtomQuestionParser(BaseContentParser):
     def encode(self, content: str, **kwargs) -> Tuple[str, dict]:
         title = kwargs.get("title", None)
@@ -47,5 +71,11 @@ class AtomQuestionParser(BaseContentParser):
 
 atom_question_tagging_protocol = CommunicationProtocol(
     template=atom_question_tagging_template,
+    parser=AtomQuestionParser(),
+)
+
+
+atom_question_tagging_protocol_cn = CommunicationProtocol(
+    template=atom_question_tagging_template_cn,
     parser=AtomQuestionParser(),
 )
