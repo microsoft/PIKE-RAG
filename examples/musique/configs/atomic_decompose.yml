@@ -26,6 +26,7 @@ workflow:
   args:
     max_num_question: 5
     question_similarity_threshold: 0.999
+    num_parallel: 8  # 添加这行来启用并行执行
 
 
 # Testing Suite Setting
@@ -132,7 +133,10 @@ retriever:
       embedding_setting:
         module_path: pikerag.llm_client.company_openai_client
         class_name: CompanyOpenAIEmbedding
-        args: {}
+        args:
+          timeout: 5.0  # 5秒超时限制
+          client_config:
+            timeout: 5.0  # OpenAI客户端超时设置
 
 
 # Evaluator Setting
@@ -157,4 +161,7 @@ monitoring:
 
   # RPM限制警告阈值（可选，用于运行时警告）
   rpm_warning_threshold: 50
+
+  # 实时统计打印间隔（秒），0表示禁用实时打印
+  print_interval: 60
 

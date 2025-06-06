@@ -194,23 +194,57 @@ class StandardOpenAIEmbedding(Embeddings):
 
     def _get_response(self, texts: Union[str, List[str]]) -> CreateEmbeddingResponse:
         """Get embedding response from OpenAI API."""
-        while True:
+        retry_count = 0
+        max_retries = 3
+        
+        while retry_count <= max_retries:
             try:
-                response = self._client.embeddings.create(input=texts, model=self._model)
-                break
+                response = self._client.embeddings.create(
+                    input=texts, 
+                    model=self._model,
+                    timeout=120.0  # 120秒超时
+                )
+                return response
+                
             except openai.RateLimitError as e:
+                retry_count += 1
+                if retry_count > max_retries:
+                    print(f"Embedding failed: Maximum retries ({max_retries + 1}) reached due to RateLimitError")
+                    return None
+                    
                 expected_wait = parse_wait_time_from_error(e)
                 if expected_wait is not None:
-                    print(f"Embedding failed due to RateLimitError, wait for {expected_wait} seconds")
+                    print(f"Embedding failed due to RateLimitError, wait for {expected_wait} seconds (attempt {retry_count}/{max_retries + 1})")
                     time.sleep(expected_wait)
                 else:
-                    print("Embedding failed due to RateLimitError, wait for 30 seconds")
+                    print(f"Embedding failed due to RateLimitError, wait for 30 seconds (attempt {retry_count}/{max_retries + 1})")
                     time.sleep(30)
-            except Exception as e:
-                print(f"Embedding failed due to exception {e}")
+                    
+            except (openai.Timeout, openai.APITimeoutError) as e:
+                retry_count += 1
+                if retry_count > max_retries:
+                    print(f"Embedding failed: Maximum retries ({max_retries + 1}) reached due to timeout")
+                    return None
+                    
+                wait_time = min(5 * retry_count, 30)
+                print(f"Embedding failed due to timeout, wait for {wait_time} seconds (attempt {retry_count}/{max_retries + 1})")
+                time.sleep(wait_time)
+                
+            except KeyboardInterrupt:
+                print("Embedding interrupted by user")
                 return None
+                
+            except Exception as e:
+                retry_count += 1
+                if retry_count > max_retries:
+                    print(f"Embedding failed: Maximum retries ({max_retries + 1}) reached due to exception: {e}")
+                    return None
+                    
+                wait_time = min(2 ** retry_count, 60)
+                print(f"Embedding failed due to exception {e}, wait for {wait_time} seconds (attempt {retry_count}/{max_retries + 1})")
+                time.sleep(wait_time)
 
-        return response
+        return None
 
     def embed_documents(self, texts: List[str], batch_call: bool = False) -> List[List[float]]:
         """Embed a list of documents."""

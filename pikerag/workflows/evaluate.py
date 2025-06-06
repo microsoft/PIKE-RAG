@@ -37,10 +37,15 @@ class EvaluationWorkflow:
         if enable_monitoring:
             self._monitor = create_monitor(
                 logger=self._logger,
-                window_minutes=monitoring_config.get("rpm_window_minutes", 1)
+                window_minutes=monitoring_config.get("rpm_window_minutes", 1),
+                print_interval=monitoring_config.get("print_interval", 60)
             )
             if hasattr(self, '_logger') and self._logger:
-                self._logger.info(f"✅ API监控器已在 {self.__class__.__name__} 中启用", tag=self.__class__.__name__)
+                print_interval = monitoring_config.get("print_interval", 60)
+                if print_interval > 0:
+                    self._logger.info(f"✅ API监控器已在 {self.__class__.__name__} 中启用（实时统计间隔: {print_interval}秒）", tag=self.__class__.__name__)
+                else:
+                    self._logger.info(f"✅ API监控器已在 {self.__class__.__name__} 中启用（禁用实时统计）", tag=self.__class__.__name__)
         else:
             self._monitor = None
             if hasattr(self, '_logger') and self._logger:

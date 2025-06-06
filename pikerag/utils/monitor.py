@@ -46,14 +46,16 @@ class OverallStats:
 class APIMonitor:
     """API请求监控器，提供RPM监控、Token统计和性能分析"""
     
-    def __init__(self, logger: Optional[Logger] = None, window_minutes: int = 1):
+    def __init__(self, logger: Optional[Logger] = None, window_minutes: int = 1, print_interval: int = 60):
         """
         Args:
             logger: 日志记录器
             window_minutes: RPM统计窗口时间（分钟）
+            print_interval: 实时统计打印间隔（秒），0表示禁用实时打印
         """
         self.logger = logger
         self.window_minutes = window_minutes
+        self.print_interval = print_interval
         self.requests: List[RequestStats] = []
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
@@ -62,17 +64,109 @@ class APIMonitor:
         # 实时RPM监控
         self._rpm_window: List[float] = []
         
+        # 实时统计打印相关
+        self._last_print_time: float = 0
+        self._print_timer: Optional[threading.Timer] = None
+        self._monitoring_active: bool = False
+        
     def start_monitoring(self):
         """开始监控"""
         self.start_time = time.time()
+        self._monitoring_active = True
+        self._last_print_time = self.start_time
+        
         if self.logger:
             self.logger.info("🔄 开始API监控", tag="APIMonitor")
+            
+        # 启动实时统计打印
+        if self.print_interval > 0:
+            self._start_periodic_print()
             
     def stop_monitoring(self):
         """停止监控"""
         self.end_time = time.time()
+        self._monitoring_active = False
+        
+        # 停止定时打印
+        if self._print_timer:
+            self._print_timer.cancel()
+            self._print_timer = None
+            
         if self.logger:
             self.logger.info("⏹️ 停止API监控", tag="APIMonitor")
+    
+    def _start_periodic_print(self):
+        """启动定期打印统计信息"""
+        if not self._monitoring_active:
+            return
+            
+        # 打印当前统计
+        self._print_realtime_stats()
+        
+        # 设置下一次打印
+        if self._monitoring_active and self.print_interval > 0:
+            self._print_timer = threading.Timer(self.print_interval, self._start_periodic_print)
+            self._print_timer.daemon = True
+            self._print_timer.start()
+    
+    def _print_realtime_stats(self):
+        """打印实时统计信息"""
+        current_time = time.time()
+        
+        with self._lock:
+            if not self.requests:
+                if self.logger:
+                    self.logger.info("📊 [实时统计] 暂无API请求", tag="APIMonitor")
+                return
+            
+            # 计算基本统计
+            total_requests = len(self.requests)
+            current_rpm = self.get_current_rpm()
+            
+            # 计算时间窗口内的统计
+            window_seconds = self.print_interval
+            window_start = current_time - window_seconds
+            recent_requests = [r for r in self.requests if r.timestamp > window_start]
+            
+            # 最近时间窗口内的统计
+            recent_count = len(recent_requests)
+            recent_tokens = sum(r.total_tokens for r in recent_requests)
+            recent_avg_duration = sum(r.duration for r in recent_requests) / recent_count if recent_count > 0 else 0
+            recent_success_rate = sum(1 for r in recent_requests if r.success) / recent_count * 100 if recent_count > 0 else 0
+            
+            # 总体统计
+            total_duration = current_time - (self.start_time or current_time)
+            total_tokens = sum(r.total_tokens for r in self.requests)
+            successful_requests = sum(1 for r in self.requests if r.success)
+            overall_success_rate = successful_requests / total_requests * 100 if total_requests > 0 else 0
+            avg_rpm = (total_requests / total_duration * 60) if total_duration > 0 else 0
+        
+        # 构建统计信息
+        elapsed_minutes = total_duration / 60
+        
+        stats_message = (
+            f"📊 [实时RPM统计] "
+            f"运行时间: {elapsed_minutes:.1f}分钟 | "
+            f"当前RPM: {current_rpm:.1f} | "
+            f"平均RPM: {avg_rpm:.1f} | "
+            f"总请求: {total_requests} | "
+            f"成功率: {overall_success_rate:.1f}% | "
+            f"总Token: {total_tokens:,}"
+        )
+        
+        if recent_count > 0:
+            stats_message += (
+                f" || 最近{window_seconds}秒: "
+                f"请求数: {recent_count} | "
+                f"Token: {recent_tokens:,} | "
+                f"平均耗时: {recent_avg_duration:.2f}s | "
+                f"成功率: {recent_success_rate:.1f}%"
+            )
+        
+        if self.logger:
+            self.logger.info(stats_message, tag="APIMonitor")
+        else:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] {stats_message}")
     
     def extract_token_usage(self, response: Any) -> Tuple[int, int, int]:
         """从OpenAI响应中提取token使用情况
@@ -322,8 +416,14 @@ def set_global_monitor(monitor: APIMonitor):
     _global_monitor = monitor
 
 
-def create_monitor(logger: Optional[Logger] = None, window_minutes: int = 1) -> APIMonitor:
-    """创建并设置全局监控器"""
-    monitor = APIMonitor(logger=logger, window_minutes=window_minutes)
+def create_monitor(logger: Optional[Logger] = None, window_minutes: int = 1, print_interval: int = 60) -> APIMonitor:
+    """创建并设置全局监控器
+    
+    Args:
+        logger: 日志记录器
+        window_minutes: RPM统计窗口时间（分钟）
+        print_interval: 实时统计打印间隔（秒），0表示禁用实时打印
+    """
+    monitor = APIMonitor(logger=logger, window_minutes=window_minutes, print_interval=print_interval)
     set_global_monitor(monitor)
     return monitor 
