@@ -124,9 +124,14 @@ retriever:
           filepath: data/musique/dev_500_retrieval_contexts_as_chunks_with_atom_questions.jsonl
           atom_tag: atom_questions
 
+#      embedding_setting:
+#        module_path: pikerag.llm_client.azure_open_ai_client
+#        class_name: AzureOpenAIEmbedding
+#        args: {}
+
       embedding_setting:
-        module_path: pikerag.llm_client.azure_open_ai_client
-        class_name: AzureOpenAIEmbedding
+        module_path: pikerag.llm_client.company_openai_client
+        class_name: CompanyOpenAIEmbedding
         args: {}
 
 
