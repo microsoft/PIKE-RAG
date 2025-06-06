@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -30,6 +31,7 @@ def _documents_match(docs: List[Document], ids: Optional[List[str]], vector_stor
         )
         return False
 
+    print(f"[ChromaDB Loading Check] Validating document consistency (checking 3 random samples)...")
     for idx in np.random.choice(len(docs), 3):
         content_in_doc: str = docs[idx].page_content
         meta_in_doc: dict = docs[idx].metadata
@@ -66,6 +68,7 @@ def _documents_match(docs: List[Document], ids: Optional[List[str]], vector_stor
                 print(f"[ChromaDB Loading Check] Metadata {key} not matched: {value} v.s. {meta_in_store[key]}")
                 return False
 
+    print(f"[ChromaDB Loading Check] Document consistency validation completed successfully!")
     return True
 
 
@@ -78,23 +81,32 @@ def load_vector_store(
     exist_ok: bool=True,
     metadata: dict=None,
 ) -> Chroma:
+    print(f"[ChromaDB] Initializing collection: {collection_name}")
     vector_store = Chroma(collection_name, embedding, persist_directory, collection_metadata=metadata)
 
     if documents is None or len(documents) == 0:
+        print(f"[ChromaDB] No documents provided, returning empty vector store")
         return vector_store
 
     assert exist_ok or vector_store._collection.count() == 0, f"Collection {collection_name} already exist!"
 
     ids = _check_ids_and_documents(ids, documents)
-
+    
+    print(f"[ChromaDB] Checking existing collection with {len(documents)} documents...")
     if _documents_match(documents, ids, vector_store):
-        print(f"Chroma DB: {collection_name} loaded.")
+        print(f"[ChromaDB] ✅ Collection {collection_name} loaded from existing data.")
         return vector_store
 
+    print(f"[ChromaDB] 🗑️  Deleting existing collection due to data mismatch...")
     vector_store.delete_collection()
 
     # Direct using of vector_store.add_documents() will raise InvalidCollectionException.
-    print(f"Start to build up the Chroma DB: {collection_name}")
+    print(f"[ChromaDB] 🚀 Starting to build ChromaDB collection: {collection_name}")
+    print(f"[ChromaDB] 📊 Processing {len(documents)} documents...")
+    print(f"[ChromaDB] ⏳ This may take a few minutes depending on document size and embedding model...")
+    
+    start_time = time.time()
+    
     vector_store = Chroma.from_documents(
         documents=documents,
         embedding=embedding,
@@ -103,7 +115,14 @@ def load_vector_store(
         persist_directory=persist_directory,
         collection_metadata=metadata,
     )
-    print(f"Chroma DB: {collection_name} Building-Up finished.")
+    
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    
+    print(f"[ChromaDB] ✅ Collection {collection_name} built successfully!")
+    print(f"[ChromaDB] ⏱️  Time elapsed: {elapsed_time:.2f} seconds ({elapsed_time/60:.1f} minutes)")
+    print(f"[ChromaDB] 📈 Processing rate: {len(documents)/elapsed_time:.1f} documents/second")
+    
     return vector_store
 
 

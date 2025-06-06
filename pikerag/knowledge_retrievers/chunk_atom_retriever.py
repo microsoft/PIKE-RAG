@@ -74,11 +74,21 @@ class ChunkAtomRetriever(BaseQaRetriever, ChromaMixin):
 
         self.similarity_func = lambda x, y: np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
 
+        print(f"\n🔧 [ChunkAtomRetriever] Starting vector store initialization...")
+        print(f"📁 Storage directory: {persist_directory}")
+        print(f"🎯 Embedding model: {embedding_config.get('class_name', 'Default')}")
+        
+        # 加载并创建 Chunk Store
+        print(f"\n📚 [Step 1/2] Loading document chunks...")
         loading_configs = vector_store_config["id_document_loading"]
         doc_ids, docs = load_callable(
             module_path=loading_configs["module_path"],
             name=loading_configs["func_name"],
         )(**loading_configs.get("args", {}))
+        
+        print(f"📊 Loaded {len(docs)} document chunks")
+        print(f"🏗️  Creating chunk vector store: {doc_collection_name}")
+        
         self._chunk_store: Chroma = load_vector_store(
             collection_name=doc_collection_name,
             persist_directory=persist_directory,
@@ -88,11 +98,17 @@ class ChunkAtomRetriever(BaseQaRetriever, ChromaMixin):
             exist_ok=exist_ok,
         )
 
+        # 加载并创建 Atom Store
+        print(f"\n⚛️  [Step 2/2] Loading atomic questions...")
         loading_configs = vector_store_config["id_atom_loading"]
         atom_ids, atoms = load_callable(
             module_path=loading_configs["module_path"],
             name=loading_configs["func_name"],
         )(**loading_configs.get("args", {}))
+        
+        print(f"📊 Loaded {len(atoms)} atomic questions")
+        print(f"🏗️  Creating atom vector store: {atom_collection_name}")
+        
         self._atom_store: Chroma = load_vector_store(
             collection_name=atom_collection_name,
             persist_directory=persist_directory,
@@ -101,6 +117,10 @@ class ChunkAtomRetriever(BaseQaRetriever, ChromaMixin):
             ids=atom_ids,
             exist_ok=exist_ok,
         )
+        
+        print(f"\n✅ [ChunkAtomRetriever] Vector store initialization completed!")
+        print(f"📈 Total collections created: 2 (chunks + atoms)")
+        print(f"💾 Data persisted to: {persist_directory}")
 
     def _atom_info_tuple_to_class(self, atom_retrieval_info: List[Tuple[str, Document, float]]) -> List[AtomRetrievalInfo]:
         # Extract all unique `source_chunk_id`
