@@ -139,10 +139,13 @@ class InteractiveQASystem:
         try:
             # 构建测试数据格式 - 需要使用BaseQaData的子类
             test_data = GenerationQaData(
-                id="interactive_question",
                 question=question,
                 answer_labels=[""],  # 交互模式下没有标准答案
-                metadata={"source": "interactive"}
+                metadata={
+                    "id": "interactive_question",
+                    "source": "interactive",
+                    "question_type": "generation"
+                }
             )
             
             # 调用工作流处理 - 使用正确的answer方法
