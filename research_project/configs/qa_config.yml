@@ -81,14 +81,14 @@ retriever:
         module_path: pikerag.utils.data_protocol_utils
         func_name: load_ids_and_chunks
         args:
-          filepath: research_project/chunked_data/chunks.jsonl
+          filepath: research_project/outputs/processed_chunks_v2/chunks_with_atoms.jsonl
           atom_tag: atom_questions
 
       id_atom_loading:
         module_path: pikerag.utils.data_protocol_utils
         func_name: load_ids_and_atoms
         args:
-          filepath: research_project/chunked_data/chunks.jsonl
+          filepath: research_project/outputs/processed_chunks_v2/chunks_with_atoms.jsonl
           atom_tag: atom_questions
 
       embedding_setting:

@@ -1,0 +1,10 @@
+{
+  "processing_time": "2025-06-09T13:24:02.684317",
+  "total_chunks": 181,
+  "total_atoms": 3049,
+  "average_atoms_per_chunk": 16.845303867403317,
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "num_parallel": 4,
+  "llm_model": "gpt-4o-mini"
+}
