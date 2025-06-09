@@ -66,9 +66,25 @@ class BaseLLMClient(object):
             print(warning_message)
         return
 
+    def info(self, info_message: str) -> None:
+        """记录信息级别的消息"""
+        if self.logger is not None:
+            self.logger.info(msg=info_message)
+        else:
+            print(info_message)
+        return
+
     def debug(self, debug_message: str) -> None:
         if self.logger is not None:
             self.logger.debug(msg=debug_message)
+        return
+
+    def error(self, error_message: str) -> None:
+        """记录错误级别的消息"""
+        if self.logger is not None:
+            self.logger.error(msg=error_message)
+        else:
+            print(f"ERROR: {error_message}")
         return
 
     def _wait(self, num_attempt: int, wait_time: Optional[int] = None) -> None:
