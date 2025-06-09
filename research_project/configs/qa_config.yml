@@ -88,7 +88,8 @@ retriever:
         module_path: pikerag.utils.data_protocol_utils
         func_name: load_ids_and_atoms
         args:
-          filepath: research_project/chunked_data/atoms.jsonl
+          filepath: research_project/chunked_data/chunks.jsonl
+          atom_tag: atom_questions
 
       embedding_setting:
         module_path: pikerag.llm_client.company_openai_client
