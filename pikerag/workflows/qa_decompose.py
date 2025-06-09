@@ -62,12 +62,21 @@ class QaDecompositionWorkflow(QaWorkflow):
         """Let the LLM client propose a sub-questions list for better answering the original question based on the
         chosen information. It is the first step in atom information selection loop.
         """
+        self._logger.debug("🤔 [问题分解调用] 准备调用LLM进行问题分解")
+        self._logger.debug(f"🤔 [问题分解输入] 原始问题: {question}")
+        self._logger.debug(f"🤔 [问题分解输入] 已有信息数量: {len(chosen_atom_infos)}")
+        
         messages = self._decompose_proposal_protocol.process_input(
             content=question,
             chosen_atom_infos=chosen_atom_infos,
         )
         content = self._client.generate_content_with_messages(messages, **self.llm_config)
         decompose, thinking, question_list = self._decompose_proposal_protocol.parse_output(content)
+        
+        self._logger.debug(f"🤔 [问题分解输出] 分解决定: {decompose}")
+        if decompose:
+            self._logger.debug(f"🤔 [问题分解输出] 生成子问题数量: {len(question_list)}")
+        
         return decompose, thinking, question_list
 
     def _filter_atom_infos(
@@ -102,25 +111,36 @@ class QaDecompositionWorkflow(QaWorkflow):
         """
         assert isinstance(self._retriever, ChunkAtomRetriever)
 
+        self._logger.debug(f"🔍 [信息检索] 使用查询列表检索，查询数量: {len(atom_queries)}")
+        for i, query_text in enumerate(atom_queries, 1):
+            self._logger.debug(f"🔍 [查询 {i}] {query_text}")
+
         # Retrieve atom info through atom storage by atom queries.
         atom_info_candidates = self._retriever.retrieve_atom_info_through_atom(
             queries=atom_queries,
             retrieve_id=retrieve_id,
         )
+        self._logger.debug(f"🔍 [主要检索] 通过子问题检索到 {len(atom_info_candidates)} 个候选")
+        
         atom_info_candidates = self._filter_atom_infos(atom_info_candidates, chosen_atom_infos)
+        self._logger.debug(f"🔍 [过滤后] 剩余 {len(atom_info_candidates)} 个候选")
 
         # Backup retrieval 1: retrieve atom info through atom storage by original query.
         if len(atom_info_candidates) == 0:
+            self._logger.debug("🔍 [备用检索1] 使用原始问题检索")
             atom_info_candidates = self._retriever.retrieve_atom_info_through_atom(
                 queries=query,
                 retrieve_id=retrieve_id,
             )
             atom_info_candidates = self._filter_atom_infos(atom_info_candidates, chosen_atom_infos)
+            self._logger.debug(f"🔍 [备用检索1] 检索到 {len(atom_info_candidates)} 个候选")
 
         # Backup retrieval 2: retrieve atom info through chunk storage directly by original query.
         if len(atom_info_candidates) == 0:
+            self._logger.debug("🔍 [备用检索2] 直接从chunk存储检索")
             atom_info_candidates = self._retriever.retrieve_atom_info_through_chunk(query, retrieve_id)
             atom_info_candidates = self._filter_atom_infos(atom_info_candidates, chosen_atom_infos)
+            self._logger.debug(f"🔍 [备用检索2] 检索到 {len(atom_info_candidates)} 个候选")
 
         return atom_info_candidates
 
@@ -131,6 +151,10 @@ class QaDecompositionWorkflow(QaWorkflow):
         atom information that can best help the question answering.
         """
         assert len(atom_info_candidates) > 0, "Info candidate list is empty!"
+        
+        self._logger.debug(f"🎯 [信息选择] 从 {len(atom_info_candidates)} 个候选中选择")
+        self._logger.debug(f"🎯 [信息选择] 已有信息数量: {len(chosen_atom_infos)}")
+        
         messages = self._retrieval_info_selection_protocol.process_input(
             content=question,
             atom_info_candidates=atom_info_candidates,
@@ -139,7 +163,10 @@ class QaDecompositionWorkflow(QaWorkflow):
         content = self._client.generate_content_with_messages(messages, **self.llm_config)
         selected, thinking, chosen_atom = self._retrieval_info_selection_protocol.parse_output(content)
 
+        self._logger.debug(f"🎯 [主要选择] 选择结果: {selected}")
+        
         if not selected and self._backup_retrieval_info_selection_protocol is not None:
+            self._logger.debug("🎯 [备用选择] 使用备用选择协议")
             messages = self._backup_retrieval_info_selection_protocol.process_input(
                 content=question,
                 atom_info_candidates=atom_info_candidates,
@@ -148,6 +175,10 @@ class QaDecompositionWorkflow(QaWorkflow):
             content = self._client.generate_content_with_messages(messages, **self.llm_config)
             selected, thinking2, chosen_atom = self._backup_retrieval_info_selection_protocol.parse_output(content)
             thinking += "\n" + thinking2
+            self._logger.debug(f"🎯 [备用选择] 选择结果: {selected}")
+
+        if selected:
+            self._logger.debug(f"🎯 [选中信息] {chosen_atom.atom[:100]}...")
 
         return selected, thinking, chosen_atom
 
@@ -181,14 +212,40 @@ class QaDecompositionWorkflow(QaWorkflow):
         The final step out of the loop is to let the LLM answer the original question given all the chosen atom
         information.
         """
+        # 开始问答流程日志
+        self._logger.info("🚀" + "=" * 100)
+        self._logger.info(f"🚀 [问答流程开始] 原始问题: {qa.question}")
+        self._logger.info(f"🚀 [问答流程开始] 最大子问题数量: {self._max_num_question}")
+        self._logger.info("🚀" + "=" * 100)
+        
         decomposition_infos: dict = {}
         chosen_atom_infos: List[AtomRetrievalInfo] = []
+        
         while len(chosen_atom_infos) < self._max_num_question:
             sub_question_id: str = f"Sub{len(chosen_atom_infos) + 1}"
             decomposition_infos[sub_question_id] = {}
+            
+            # 轮次开始日志
+            self._logger.info("")
+            self._logger.info("🔄" + "-" * 80)
+            self._logger.info(f"🔄 [第 {len(chosen_atom_infos) + 1} 轮分解] 开始处理")
+            self._logger.info(f"🔄 [当前状态] 已选择信息数量: {len(chosen_atom_infos)}")
+            self._logger.info("🔄" + "-" * 80)
 
             # Step 1: Let LLM client provide a decomposition proposal with current context.
+            self._logger.info("📝 [步骤1: 问题分解] 开始...")
             decompose, thinking, proposals = self._propose_question_decomposition(qa.question, chosen_atom_infos)
+            
+            # 分解结果日志
+            self._logger.info(f"📝 [问题分解结果] 是否需要分解: {decompose}")
+            if decompose:
+                self._logger.info(f"📝 [问题分解推理] {thinking}")
+                self._logger.info("📝 [提议的子问题列表]:")
+                for i, proposal in enumerate(proposals, 1):
+                    self._logger.info(f"   {i}. {proposal}")
+            else:
+                self._logger.info("📝 [问题分解] 无需进一步分解，退出循环")
+            
             decomposition_infos[sub_question_id]["proposal"] = {
                 "to_decompose": decompose,
                 "thinking": thinking,
@@ -198,12 +255,22 @@ class QaDecompositionWorkflow(QaWorkflow):
                 break
 
             # Step 2: Retrieve relevant atom information to the sub-question proposals.
+            self._logger.info("🔍 [步骤2: 信息检索] 开始...")
+            self._logger.info(f"🔍 [检索查询] 使用 {len(proposals)} 个子问题进行检索")
+            
             atom_info_candidates = self._retrieve_atom_info_candidates(
                 atom_queries=proposals,
                 query=qa.question,
                 chosen_atom_infos=chosen_atom_infos,
                 retrieve_id=sub_question_id,
             )
+            
+            # 检索结果日志
+            self._logger.info(f"🔍 [检索结果] 找到 {len(atom_info_candidates)} 个候选信息")
+            for i, info in enumerate(atom_info_candidates, 1):
+                self._logger.info(f"   候选 {i}: {info.atom[:100]}...")
+                self._logger.info(f"   来源: {info.source_chunk_title}")
+            
             decomposition_infos[sub_question_id]["retrieval"] = [
                 {
                     "relevant_proposal": info.atom_query,
@@ -214,30 +281,67 @@ class QaDecompositionWorkflow(QaWorkflow):
                 for info in atom_info_candidates
             ]
             if len(atom_info_candidates) == 0:
+                self._logger.info("🔍 [检索结果] 未找到相关信息，退出循环")
                 break
 
             # Step 3: Let LLM client select following sub-question from the candidates with current context.
+            self._logger.info("🎯 [步骤3: 信息选择] 开始...")
             selected, thinking, chosen_info = self._select_atom_question(
                 qa.question,
                 atom_info_candidates,
                 chosen_atom_infos,
             )
+            
+            # 选择结果日志
+            self._logger.info(f"🎯 [选择结果] 是否选中: {selected}")
+            self._logger.info(f"🎯 [选择推理] {thinking}")
+            
             decomposition_infos[sub_question_id]["selection"] = {
                 "selected": selected,
                 "thinking": thinking,
             }
+            
             if selected:
                 chosen_atom_infos.append(chosen_info)
+                self._logger.info("✅ [信息已选中]")
+                self._logger.info(f"   问题: {chosen_info.atom}")
+                self._logger.info(f"   来源: {chosen_info.source_chunk_title}")
+                self._logger.info(f"   内容摘要: {chosen_info.source_chunk[:200]}...")
+                
                 decomposition_infos[sub_question_id]["selection"]["chosen_info"] = {
                     "question": chosen_info.atom,
                     "source_chunk_title": chosen_info.source_chunk_title,
                     "source_chunk": chosen_info.source_chunk,
                 }
             else:
-                # TODO: re-propose?
+                self._logger.info("❌ [未选中信息] 退出循环")
                 break
+            
+            self._logger.info(f"🔄 [第 {len(chosen_atom_infos)} 轮完成] 当前已选择 {len(chosen_atom_infos)} 个信息")
+
+        # 多跳推理总结
+        self._logger.info("")
+        self._logger.info("🧠" + "=" * 100)
+        self._logger.info(f"🧠 [多跳推理完成] 总共进行了 {len(chosen_atom_infos)} 轮信息收集")
+        self._logger.info("🧠 [最终选择的信息摘要]:")
+        for i, info in enumerate(chosen_atom_infos, 1):
+            self._logger.info(f"   {i}. 问题: {info.atom}")
+            self._logger.info(f"      来源: {info.source_chunk_title}")
+        self._logger.info("🧠" + "=" * 100)
 
         # Last Step: Let LLM client answer the original question with all chosen atom information during the loop above.
+        self._logger.info("📋 [最终答案生成] 开始...")
+        self._logger.info(f"📋 [最终答案生成] 基于 {len(chosen_atom_infos)} 个选中的信息")
+        
         output = self._answer_original_question(qa.question, chosen_atom_infos)
+        
+        # 最终答案日志
+        if "answer" in output:
+            self._logger.info("🎉 [最终答案生成完成]")
+            self._logger.info("🎉" + "=" * 100)
+            self._logger.info("🎉 [最终答案]:")
+            self._logger.info(output["answer"])
+            self._logger.info("🎉" + "=" * 100)
+        
         output["decomposition_infos"] = decomposition_infos
         return output
