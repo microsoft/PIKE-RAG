@@ -1,0 +1,72 @@
+# Environment Variable Setting
+################################################################################
+dotenv_path: env_configs/.env
+
+# Logging Setting
+################################################################################
+log_root_dir: research_project/logs
+
+# experiment_name: would be used to create log_dir = log_root_dir/experiment_name/
+experiment_name: building_regulations_chunking
+
+# LLM Setting (for atom extraction)
+################################################################################
+llm_client:
+  module_path: pikerag.llm_client
+  class_name: CompanyOpenAIClient
+  args: {}
+
+  llm_config:
+    model: gpt-4o-mini
+    temperature: 0
+
+  cache_config:
+    # location_prefix: will be joined with log_dir to generate the full path;
+    #   if set to null, the experiment_name would be used
+    location_prefix: null
+    auto_dump: True
+
+# Input Document Setting
+################################################################################
+input_doc_setting:
+  doc_dir: research_project/processed_data
+  extensions: ["jsonl"]
+
+# Output Document Setting
+################################################################################
+output_doc_setting:
+  doc_dir: research_project/chunked_data
+
+# Document Processing Setting
+################################################################################
+document_processing:
+  chunk_size: 1000
+  chunk_overlap: 200
+  separators: ["\n\n", "\n", "。", "；", "，", " ", ""]
+
+# Atom Question Generation Setting
+################################################################################
+atom_generation:
+  enable: true
+  max_atoms_per_chunk: 3
+  prompt_template: |
+    请基于以下文档片段，生成2-3个具体的问题，这些问题应该能够被该片段直接回答。
+    
+    文档片段：
+    {chunk_content}
+    
+    要求：
+    1. 问题应该具体明确，避免过于宽泛
+    2. 问题应该能被该片段完整回答
+    3. 优先关注技术规范、标准要求等关键信息
+    4. 使用中文
+    
+    请以JSON格式返回问题列表：
+    {{"questions": ["问题1", "问题2", "问题3"]}}
+
+# Monitoring Setting
+################################################################################
+monitoring:
+  enable: true
+  rpm_window_minutes: 1
+  print_interval: 30 

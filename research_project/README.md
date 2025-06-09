@@ -1,111 +1,233 @@
-# PIKE-RAG 研究项目
+# 🏗️ PIKE-RAG 建筑工程规范智能问答系统
 
-## 🎯 项目目标
+基于 PIKE-RAG 技术的建筑工程规范智能问答系统，支持复杂推理和多跳问答。
 
-基于PIKE-RAG交付标准，进行代码理解、中文适配、性能分析和质量评估的综合研究项目。
+## 📋 功能特性
 
-## 📁 项目结构
+- 🔍 **智能检索**: 基于向量数据库的语义检索
+- 🧠 **复杂推理**: 支持问题分解和多步推理
+- 📚 **专业知识**: 针对建筑工程规范文档优化
+- 🌏 **中文支持**: 完整的中文问答支持
+- 🎯 **自动验证**: 内置问答对验证功能
+- 💬 **交互式界面**: 友好的命令行交互体验
+
+## 🗂️ 项目结构
 
 ```
 research_project/
-├── README.md              # 项目总览
-├── API_MONITORING_GUIDE.md # API监控系统使用指南
-├── examples/              # 可运行示例
-│   ├── chinese_demo/      # 中文文档处理示例
-│   └── performance_test/  # 性能测试示例
-├── analysis/              # 分析报告
-│   ├── code_analysis.md   # 代码分析报告
-│   ├── storage_analysis.md # 存储结构分析
-│   └── performance_report.md # 性能分析报告
-├── docs/                  # 研究文档
-│   ├── architecture.md    # 架构分析
-│   ├── chinese_support.md # 中文支持研究
-│   └── extension_points.md # 扩展点分析
-├── tests/                 # 测试用例
-│   ├── quality_test/      # 质量测试
-│   └── benchmark/         # 基准测试
-└── configs/               # 配置文件
-    ├── chinese_config.yml # 中文优化配置
-    └── performance_config.yml # 性能测试配置
+├── configs/                   # 配置文件
+│   ├── chunking_config.yml   # 文档分块配置
+│   └── qa_config.yml         # 问答系统配置
+├── scripts/                   # 执行脚本
+│   ├── data_preprocessing.py  # 数据预处理
+│   ├── pike_rag_processing.py # PIKE-RAG数据处理
+│   ├── build_vector_store.py  # 向量存储构建
+│   └── interactive_qa.py      # 交互式问答
+├── data_process/             # 原始数据
+│   ├── markdown/             # 建筑规范文档(MD格式)
+│   └── qa_examples.xlsx      # 问答样例
+├── processed_data/           # 处理后数据
+├── chunked_data/            # 分块后数据
+├── vector_stores/           # 向量数据库
+├── logs/                    # 日志文件
+├── run_pipeline.py          # 完整流水线脚本
+└── README.md               # 项目说明
 ```
 
 ## 🚀 快速开始
 
-### 1. 运行中文文档处理示例
+### 1. 环境准备
+
+确保已安装所需依赖：
 ```bash
-cd examples/chinese_demo
-python chinese_qa_demo.py
+pip install -r requirements.txt
+pip install -r examples/requirements.txt
+pip install sentence-transformers
 ```
 
-### 2. 运行性能测试
+### 2. 完整流水线执行
+
+运行完整的数据处理和问答系统部署：
+
 ```bash
-cd examples/performance_test
-python performance_benchmark.py
+# 执行完整流水线
+python research_project/run_pipeline.py --step all
+
+# 或分步执行
+python research_project/run_pipeline.py --step preprocess  # 数据预处理
+python research_project/run_pipeline.py --step chunk      # 文档分块
+python research_project/run_pipeline.py --step vector     # 向量存储
+python research_project/run_pipeline.py --step qa         # 问答系统
 ```
 
-### 3. 使用API监控功能
+### 3. 启动交互式问答
+
 ```bash
-# 启用监控的标注任务
-python examples/tagging.py examples/musique/configs/tagging.yml
+python research_project/scripts/interactive_qa.py
 ```
-详细使用方法请参考：[API监控系统使用指南](API_MONITORING_GUIDE.md)
 
-### 4. 查看分析报告
-- [代码分析报告](analysis/code_analysis.md)
-- [存储结构分析](analysis/storage_analysis.md)
-- [性能分析报告](analysis/performance_report.md)
+## 💡 使用说明
 
-## 🔬 研究成果
+### 交互式问答系统
 
-### 代码理解
-- ✅ 核心模块分析
-- ✅ 依赖关系梳理
-- ✅ 关键配置参数识别
-- ✅ 扩展点识别
+启动后，您可以：
 
-### 中文支持
-- ✅ 提示词中文化
-- ✅ 文档处理优化
-- ✅ 检索效果改进
+- 📝 **直接提问**: 输入建筑工程相关问题
+- 🔍 **查看示例**: 输入 `examples` 查看预置问题
+- ✅ **运行验证**: 输入 `validate` 测试系统准确性
+- ❓ **获取帮助**: 输入 `help` 查看详细说明
+- 🚪 **退出系统**: 输入 `quit` 或 `exit`
 
-### 性能分析
-- ✅ Token消耗统计
-- ✅ 时间性能分析
-- ✅ 存储占用分析
-- ✅ 异常处理优化
+### 示例问题
 
-### 质量评估
-- ✅ 多层级问题测试
-- ✅ 对比基准测试
-- ✅ 评估指标完善
+```
+1. 建筑电气工程施工质量验收规范中对接地系统有什么要求？
+2. 地下防水工程的验收标准是什么？
+3. 建筑基桩检测的主要方法有哪些？
+4. 临时用电安全技术标准的核心要求是什么？
+```
 
-### API监控系统 🆕
-- ✅ 实时RPM监控
-- ✅ Token消耗统计
-- ✅ 成本估算功能
-- ✅ 错误诊断分析
-- ✅ 多线程支持
+## 🔧 配置说明
 
-## 📊 主要发现
+### LLM 配置
 
-1. **分层知识架构优势**: Chunk-Atom双层结构显著提升检索精度
-2. **问题分解机制**: 三步循环（提议-检索-选择）有效处理复杂推理
-3. **中文优化效果**: 针对性优化后中文处理效果提升30%+
-4. **性能优化空间**: 识别出多个关键性能瓶颈和优化方向
-5. **API使用效率**: 监控系统帮助优化API调用策略，降低30%使用成本
+系统使用 Company OpenAI 客户端，需要配置环境变量：
 
-## 🔧 实际应用价值
+```bash
+export COMPANY_OPENAI_API_KEY=your-company-openai-api-key
+export COMPANY_OPENAI_BASE_URL=https://aigc.sankuai.com/v1/openai/native
+export COMPANY_OPENAI_TRACE_ID=your-trace-id  # 可选
+```
 
-- **工业制造**: 技术文档智能问答
-- **医疗健康**: 病历信息检索分析  
-- **法律合规**: 法规条文理解应用
-- **学术研究**: 文献知识挖掘
-- **成本控制**: API使用监控和成本优化
+或者复制配置示例文件：
+```bash
+cp research_project/configs/company_openai_config.yml.example research_project/configs/company_openai_config.yml
+# 编辑配置文件填入正确的API信息
+```
 
-## 📝 后续计划
+## ✅ 最新更新：Mock逻辑修正
 
-1. **扩展更多领域**: 金融、教育等垂直领域适配
-2. **优化算法效率**: 检索和推理算法进一步优化
-3. **增强多模态**: 支持图表、表格等多模态内容
-4. **生产环境部署**: 企业级部署方案设计
-5. **监控系统扩展**: 支持更多LLM提供商和高级分析功能 
+### 已修正的Mock逻辑
+
+1. **原子问题生成** ✅
+   - **之前**: 使用简单关键词匹配生成问题
+   - **现在**: 使用CompanyOpenAI LLM + PIKE-RAG专用prompt生成高质量原子问题
+   - **回退机制**: 当LLM不可用时，使用改进的关键词匹配方法
+
+2. **Embedding调用** ✅
+   - **之前**: 调用不存在的`get_embeddings`方法
+   - **现在**: 使用正确的`embed_query`和`embed_documents`方法
+   - **回退机制**: CompanyOpenAI → sentence-transformers → 零向量
+
+3. **错误处理** ✅
+   - 增加了完善的异常处理和回退机制
+   - 提供详细的错误信息和解决建议
+
+### 测试LLM集成
+
+运行测试脚本验证LLM集成是否正常：
+
+```bash
+python research_project/scripts/test_llm_integration.py
+```
+
+该脚本会测试：
+- 环境变量配置
+- LLM客户端基本功能
+- 原子问题生成
+- Embedding客户端
+
+### 参数调优
+
+主要配置文件：
+
+- `qa_config.yml`: 问答系统参数
+  - `max_num_question`: 最大子问题数量
+  - `retrieve_k`: 检索文档数量
+  - `temperature`: LLM 生成温度
+
+## 📊 系统架构
+
+```mermaid
+graph TD
+    A[原始文档] --> B[数据预处理]
+    B --> C[文档分块]
+    C --> D[原子问题提取]
+    D --> E[向量化存储]
+    E --> F[问答系统]
+    
+    G[用户问题] --> H[问题分解]
+    H --> I[信息检索]
+    I --> J[信息选择]
+    J --> K[答案生成]
+    
+    E --> I
+```
+
+## 🎯 验证功能
+
+系统内置验证功能，自动对比系统回答与标准答案：
+
+```bash
+# 在交互式界面中输入
+validate
+```
+
+验证过程会：
+1. 加载预置的问答对
+2. 逐一测试系统回答
+3. 显示标准答案对比
+4. 计算准确率统计
+
+## 📈 性能优化
+
+### 检索优化
+- 调整 `retrieve_k` 参数平衡精度和效率
+- 设置 `retrieve_score_threshold` 过滤低质量结果
+
+### 推理优化
+- 限制 `max_num_question` 避免过度分解
+- 调整 `question_similarity_threshold` 控制问题去重
+
+### 资源管理
+- 启用 API 监控控制调用频率
+- 使用缓存机制减少重复调用
+
+## 🔍 故障排除
+
+### 常见问题
+
+1. **向量存储构建失败**
+   - 检查网络连接和 API 配置
+   - 可以跳过向量构建使用本地模型
+
+2. **问答系统启动失败**
+   - 确认所有数据文件已生成
+   - 检查配置文件路径
+
+3. **回答质量不佳**
+   - 调整检索参数
+   - 增加文档数据量
+   - 优化提示词模板
+
+### 日志查看
+
+```bash
+# 查看处理日志
+ls research_project/logs/
+
+# 查看特定实验日志
+tail -f research_project/logs/building_regulations_qa/experiment.log
+```
+
+## 🤝 贡献指南
+
+欢迎提交问题和改进建议！
+
+## 📄 许可证
+
+本项目基于 MIT 许可证开源。
+
+---
+
+🎉 享受使用 PIKE-RAG 建筑工程规范智能问答系统！ 

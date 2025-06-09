@@ -125,6 +125,9 @@ question_decompose_protocol_cn = CommunicationProtocol(
     parser=QuestionDecompositionParser(),
 )
 
+# Chinese alias
+question_decompose_protocol_chinese = question_decompose_protocol_cn
+
 ################################################################################
 
 atom_question_selection_template = MessageTemplate(
@@ -243,6 +246,9 @@ atom_question_selection_protocol_cn = CommunicationProtocol(
     template=atom_question_selection_template_cn,
     parser=AtomQuestionSelectionParser(),
 )
+
+# Chinese alias
+atom_question_selection_protocol_chinese = atom_question_selection_protocol_cn
 
 ################################################################################
 
@@ -366,6 +372,9 @@ chunk_selection_protocol_cn = CommunicationProtocol(
     parser=ChunkSelectionParser(),
 )
 
+# Chinese alias
+chunk_selection_protocol_chinese = chunk_selection_protocol_cn
+
 ################################################################################
 
 class ContextQaParser(GenerationQaParser):
@@ -390,3 +399,6 @@ final_qa_protocol_cn = CommunicationProtocol(
     template=generation_qa_with_reference_template_cn,
     parser=ContextQaParser(),
 )
+
+# Chinese alias
+final_qa_protocol_chinese = final_qa_protocol_cn

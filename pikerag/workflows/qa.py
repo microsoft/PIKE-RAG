@@ -241,70 +241,147 @@ class QaWorkflow:
         fout.close()
 
     def _multiple_threads_run(self) -> None:
-        fout = jsonlines.open(self._yaml_config["test_jsonl_path"], "w")
+        import signal
+        import sys
+        
+        # 添加信号处理器用于优雅停止
+        interrupted = False
+        
+        def signal_handler(signum, frame):
+            nonlocal interrupted
+            self._logger.warning(f"接收到信号 {signum}，正在优雅停止多线程执行...")
+            interrupted = True
+        
+        # 注册信号处理器
+        original_sigint_handler = signal.signal(signal.SIGINT, signal_handler)
+        original_sigterm_handler = signal.signal(signal.SIGTERM, signal_handler)
+        
+        try:
+            fout = jsonlines.open(self._yaml_config["test_jsonl_path"], "w")
 
-        for round_idx in range(self._yaml_config["test_rounds"]):
-            round_id: str = f"Round{round_idx}"
-            self._update_llm_cache(round_idx)
-            self._evaluator.on_round_test_start(round_id)
+            for round_idx in range(self._yaml_config["test_rounds"]):
+                if interrupted:
+                    self._logger.warning("用户中断，停止执行")
+                    break
+                    
+                round_id: str = f"Round{round_idx}"
+                self._update_llm_cache(round_idx)
+                self._evaluator.on_round_test_start(round_id)
 
-            self._logger.info(f"[{self._yaml_config['experiment_name']}] Round {round_idx} with parallel level set to {self._num_parallel}.")
+                self._logger.info(f"[{self._yaml_config['experiment_name']}] Round {round_idx} with parallel level set to {self._num_parallel}.")
+                self._logger.info("💡 提示: 按 Ctrl+C 可以优雅停止并保存已完成的结果")
 
-            with ThreadPoolExecutor(max_workers=self._num_parallel) as executor:
-                qa_pbar = tqdm(total=len(self._testing_suite), desc=f"[{self._yaml_config['experiment_name']}] Round {round_idx}")
+                with ThreadPoolExecutor(max_workers=self._num_parallel) as executor:
+                    qa_pbar = tqdm(total=len(self._testing_suite), desc=f"[{self._yaml_config['experiment_name']}] Round {round_idx}")
 
-                # Submit all qa to the executor for question answering
-                future_to_index = {
-                    executor.submit(self.answer, qa, q_idx):
-                    q_idx for q_idx, qa in enumerate(self._testing_suite)
-                }
+                    # Submit all qa to the executor for question answering
+                    future_to_index = {
+                        executor.submit(self.answer, qa, q_idx):
+                        q_idx for q_idx, qa in enumerate(self._testing_suite)
+                    }
 
-                qas_with_answer: List[BaseQaData] = [None] * len(self._testing_suite)
-                for future in as_completed(future_to_index):
-                    q_idx = future_to_index[future]
-                    qa = self._testing_suite[q_idx]
-                    try:
-                        output_dict = future.result()
+                    qas_with_answer: List[BaseQaData] = [None] * len(self._testing_suite)
+                    completed_count = 0
+                    
+                    # 处理QA任务完成
+                    while len(future_to_index) > 0 and not interrupted:
+                        try:
+                            # 使用短超时来定期检查中断信号
+                            for future in as_completed(future_to_index, timeout=1.0):
+                                if interrupted:
+                                    break
+                                    
+                                q_idx = future_to_index.pop(future)
+                                qa = self._testing_suite[q_idx]
+                                try:
+                                    output_dict = future.result()
 
-                        # Process output dict one by one
-                        assert "answer" in output_dict, "`answer` should be included in output_dict"
-                        answer = output_dict.pop("answer")
-                        qa.update_answer(answer)
-                        qa.answer_metadata.update(output_dict)
-                    except Exception as e:
-                        print(f"Exception answer {q_idx}-th question: {e}")
-                    qas_with_answer[q_idx] = qa
+                                    # Process output dict one by one
+                                    assert "answer" in output_dict, "`answer` should be included in output_dict"
+                                    answer = output_dict.pop("answer")
+                                    qa.update_answer(answer)
+                                    qa.answer_metadata.update(output_dict)
+                                except Exception as e:
+                                    self._logger.warning(f"Exception answer {q_idx}-th question: {e}")
+                                qas_with_answer[q_idx] = qa
+                                completed_count += 1
+                                qa_pbar.update(1)
+                                
+                        except TimeoutError:
+                            # as_completed超时，继续循环检查中断信号
+                            continue
+                        except KeyboardInterrupt:
+                            interrupted = True
+                            self._logger.warning("接收到中断信号，正在停止...")
+                            
+                    # 如果被中断，取消剩余任务
+                    if interrupted:
+                        self._logger.warning("用户中断，取消剩余任务...")
+                        for remaining_future in list(future_to_index.keys()):
+                            if not remaining_future.done():
+                                remaining_future.cancel()
 
-                    qa_pbar.update(1)
+                    qa_pbar.close()
+                    
+                    self._logger.info(f"QA处理完成: {completed_count}/{len(self._testing_suite)} 个问题")
 
-                qa_pbar.close()
+                    if interrupted:
+                        self._logger.warning("跳过评估阶段，直接保存已完成的结果")
+                        # 保存已完成的结果
+                        for qa in qas_with_answer:
+                            if qa is not None:
+                                fout.write(qa.as_dict())
+                                self._update_qas_metrics_table(qa)
+                        break
 
-                evaluation_pbar = tqdm(total=len(self._testing_suite), desc=f"[{self._yaml_config['experiment_name']}] Round {round_idx} Evaluation")
+                    evaluation_pbar = tqdm(total=len(self._testing_suite), desc=f"[{self._yaml_config['experiment_name']}] Round {round_idx} Evaluation")
 
-                # Submit all qa to the executor for evaluation
-                evaluation_future_to_index = {
-                    executor.submit(self._evaluator.update_round_metrics, qa):
-                    q_idx for q_idx, qa in enumerate(qas_with_answer)
-                }
-                for future in as_completed(evaluation_future_to_index):
-                    q_idx = evaluation_future_to_index[future]
-                    try:
-                        future.result()
-                    except Exception as e:
-                        print(f"Exception evaluate {q_idx}-th question answer: {e}")
-                    evaluation_pbar.update(1)
+                    # Submit all qa to the executor for evaluation
+                    evaluation_future_to_index = {
+                        executor.submit(self._evaluator.update_round_metrics, qa):
+                        q_idx for q_idx, qa in enumerate(qas_with_answer)
+                    }
+                    
+                    # 处理评估任务完成
+                    while len(evaluation_future_to_index) > 0 and not interrupted:
+                        try:
+                            for future in as_completed(evaluation_future_to_index, timeout=1.0):
+                                if interrupted:
+                                    break
+                                q_idx = evaluation_future_to_index.pop(future)
+                                try:
+                                    future.result()
+                                except Exception as e:
+                                    self._logger.warning(f"Exception evaluate {q_idx}-th question answer: {e}")
+                                evaluation_pbar.update(1)
+                        except TimeoutError:
+                            # as_completed超时，继续循环检查中断信号
+                            continue
+                        except KeyboardInterrupt:
+                            interrupted = True
 
-                evaluation_pbar.close()
+                    evaluation_pbar.close()
 
-                for qa in qas_with_answer:
-                    fout.write(qa.as_dict())
-                    self._update_qas_metrics_table(qa)
+                    for qa in qas_with_answer:
+                        if qa is not None:
+                            fout.write(qa.as_dict())
+                            self._update_qas_metrics_table(qa)
 
-            self._evaluator.on_round_test_end(round_id)
+                self._evaluator.on_round_test_end(round_id)
 
-        self._evaluator.on_test_end()
-
-        fout.close()
+            self._evaluator.on_test_end()
+            fout.close()
+            
+        except KeyboardInterrupt:
+            self._logger.warning("主线程接收到中断信号")
+        finally:
+            # 恢复原来的信号处理器
+            signal.signal(signal.SIGINT, original_sigint_handler)
+            signal.signal(signal.SIGTERM, original_sigterm_handler)
+            
+            if interrupted:
+                self._logger.info("✅ 已优雅停止，保存的结果可在输出文件中查看")
+                sys.exit(130)  # 标准的SIGINT退出码
 
     def run(self) -> None:
         """The QA testing flow."""

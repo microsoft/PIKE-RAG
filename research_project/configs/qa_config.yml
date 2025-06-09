@@ -1,0 +1,116 @@
+# Environment Variable Setting
+################################################################################
+dotenv_path: null
+
+# Logging Setting
+################################################################################
+log_root_dir: research_project/logs
+
+# experiment_name: would be used to create log_dir = log_root_dir/experiment_name/
+experiment_name: building_regulations_qa
+
+# Number of rounds you want to test
+test_rounds: 1
+
+# Workflow Setting
+################################################################################
+workflow:
+  module_path: pikerag.workflows.qa_decompose
+  class_name: QaDecompositionWorkflow
+  args:
+    max_num_question: 5
+    question_similarity_threshold: 0.999
+    num_parallel: 4
+
+# Testing Suite Setting (for validation)
+################################################################################
+test_loading:
+  module: pikerag.utils.data_protocol_utils
+  name: load_testing_suite
+  args:
+    filepath: research_project/processed_data/qa_pairs.jsonl
+
+# Prompt Setting (with Chinese support)
+################################################################################
+decompose_proposal_protocol:
+  module_path: pikerag.prompts.decomposition
+  protocol_name: question_decompose_protocol_chinese
+
+selection_protocol:
+  module_path: pikerag.prompts.decomposition
+  protocol_name: atom_question_selection_protocol_chinese
+
+backup_selection_protocol:
+  module_path: pikerag.prompts.decomposition
+  protocol_name: chunk_selection_protocol_chinese
+
+original_question_answering_protocol:
+  module_path: pikerag.prompts.decomposition
+  protocol_name: final_qa_protocol_chinese
+
+# LLM Setting
+################################################################################
+llm_client:
+  module_path: pikerag.llm_client
+  class_name: CompanyOpenAIClient
+  args: {}
+
+  llm_config:
+    model: gpt-4o-mini
+    temperature: 0
+
+  cache_config:
+    location_prefix: null
+    auto_dump: True
+
+# Retriever Setting
+################################################################################
+retriever:
+  module_path: pikerag.knowledge_retrievers
+  class_name: ChunkAtomRetriever
+  args:
+    retrieve_k: 8
+    retrieve_score_threshold: 0.5
+    atom_retrieve_k: 4
+
+    vector_store:
+      collection_name: building_regulations
+      persist_directory: research_project/vector_stores
+
+      id_document_loading:
+        module_path: pikerag.utils.data_protocol_utils
+        func_name: load_ids_and_chunks
+        args:
+          filepath: research_project/chunked_data/chunks.jsonl
+          atom_tag: atom_questions
+
+      id_atom_loading:
+        module_path: pikerag.utils.data_protocol_utils
+        func_name: load_ids_and_atoms
+        args:
+          filepath: research_project/chunked_data/atoms.jsonl
+
+      embedding_setting:
+        module_path: pikerag.llm_client.company_openai_client
+        class_name: CompanyOpenAIEmbedding
+        args:
+          timeout: 10.0
+          client_config:
+            timeout: 10.0
+
+# Evaluator Setting
+################################################################################
+evaluator:
+  metrics:
+    - ExactMatch
+    - F1
+    - Precision
+    - Recall
+
+# Monitoring Setting
+################################################################################
+monitoring:
+  enable: true
+  rpm_window_minutes: 1
+  rpm_warning_threshold: 50
+  print_interval: 60 
