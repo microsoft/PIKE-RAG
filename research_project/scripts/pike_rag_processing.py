@@ -106,21 +106,60 @@ class PikeRagProcessor:
     
     def setup_llm_client(self):
         """设置LLM客户端用于原子问题生成"""
+        # 首先尝试使用CompanyOpenAI
         try:
-            self.llm_client = CompanyOpenAIClient()
+            # 从配置文件获取LLM设置
+            llm_config = self.config.get("llm_client", {})
+            llm_args = llm_config.get("args", {})
             
-            # 设置原子问题生成协议
-            self.atom_question_protocol = CommunicationProtocol(
-                template=atom_question_tagging_template_cn,
-                parser=AtomQuestionParser(),
+            # 初始化LLM客户端，传递配置参数
+            self.llm_client = CompanyOpenAIClient(
+                logger=None,  # 暂时不使用logger
+                llm_config=llm_config.get("llm_config", {}),
+                **llm_args
             )
             
-            print("CompanyOpenAI 客户端初始化成功")
+            print("✅ CompanyOpenAI 客户端初始化成功")
             self.use_llm = True
+            return
         except Exception as e:
-            print(f"无法初始化CompanyOpenAI客户端: {e}")
-            print("将使用简化的关键词生成方法")
-            self.use_llm = False
+            print(f"⚠️  CompanyOpenAI 初始化失败: {e}")
+        
+        # 如果Company OpenAI失败，尝试使用标准OpenAI
+        try:
+            import openai
+            from openai import OpenAI
+            
+            # 检查是否有有效的API key
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key or api_key == "1@1":
+                raise ValueError("无效的OPENAI_API_KEY")
+            
+            # 创建简单的OpenAI客户端包装器
+            class SimpleOpenAIClient:
+                def __init__(self):
+                    self.client = OpenAI(api_key=api_key)
+                
+                def generate_content_with_messages(self, messages, **kwargs):
+                    response = self.client.chat.completions.create(
+                        model=kwargs.get("model", "gpt-4o-mini"),
+                        messages=messages,
+                        temperature=kwargs.get("temperature", 0),
+                        max_tokens=kwargs.get("max_tokens", 1000)
+                    )
+                    return response.choices[0].message.content
+            
+            self.llm_client = SimpleOpenAIClient()
+            print("✅ 标准OpenAI 客户端初始化成功")
+            self.use_llm = True
+            return
+        except Exception as e:
+            print(f"⚠️  标准OpenAI 初始化失败: {e}")
+        
+        # 如果所有方法都失败
+        print("❌ 无法初始化任何LLM客户端")
+        print("请设置有效的API key或检查网络连接")
+        self.use_llm = False
     
     def load_documents(self) -> List[Dict[str, Any]]:
         """加载文档"""
@@ -171,111 +210,86 @@ class PikeRagProcessor:
     
     def generate_atom_questions_with_llm(self, chunk: Dict) -> List[str]:
         """使用LLM生成原子问题"""
+        content = chunk["content"]
+        title = chunk.get("source_doc_title", "")
+        
+        # 如果内容太短，跳过
+        if len(content.strip()) < 50:
+            return []
+        
         try:
-            # 准备输入内容
-            content = chunk["content"]
-            title = chunk.get("source_doc_title", "")
-            
-            # 处理输入
-            messages = self.atom_question_protocol.process_input(
-                content=content,
-                title=title
-            )
+            # 构建更好的prompt
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一个专业的建筑规范问答专家。请基于给定的文档片段，生成2-3个具体、实用的问题。"
+                },
+                {
+                    "role": "user", 
+                    "content": f"""请基于以下文档片段生成2-3个问题：
+
+文档标题：{title}
+
+文档内容：
+{content}
+
+要求：
+1. 问题应该具体明确，能被该片段完整回答
+2. 问题应该关注技术规范、标准要求等关键信息
+3. 问题应该对实际工程有参考价值
+4. 避免过于宽泛的问题
+5. 使用中文
+
+请直接返回问题列表，每行一个问题："""
+                }
+            ]
             
             # 调用LLM
-            response = self.llm_client.generate_content_with_messages(messages)
+            response = self.llm_client.generate_content_with_messages(
+                messages, 
+                **self.config.get("llm_client", {}).get("llm_config", {})
+            )
             
-            # 解析输出
-            questions = self.atom_question_protocol.parse_output(response)
+            # 解析响应
+            questions = []
+            for line in response.split('\n'):
+                line = line.strip()
+                if line and '?' in line or '？' in line:
+                    # 清理格式
+                    line = line.lstrip('0123456789.- ').strip()
+                    if len(line) > 10:  # 过滤过短的问题
+                        questions.append(line)
             
             # 限制问题数量
-            if len(questions) > 5:
-                questions = questions[:5]
-            
-            # 确保至少有一个问题
-            if not questions:
-                questions = [f"关于{title}的相关规定是什么？"]
-            
+            questions = questions[:3]
+
+            print(f"✅ 为块 {chunk['chunk_id']} 生成了 {len(questions)} 个问题")
             return questions
             
         except Exception as e:
-            print(f"LLM生成原子问题失败: {e}")
-            # 回退到简化方法
-            return self.generate_atom_questions_fallback(chunk)
-    
-    def generate_atom_questions_fallback(self, chunk: Dict) -> List[str]:
-        """回退的原子问题生成方法（改进的关键词匹配）"""
-        content = chunk["content"]
-        title = chunk.get("source_doc_title", "")
-        questions = []
-        
-        # 更智能的关键词匹配
-        keyword_patterns = {
-            "验收": [
-                f"{title}中的验收标准是什么？",
-                f"{title}的验收程序如何进行？",
-                f"{title}规定的验收要求有哪些？"
-            ],
-            "标准": [
-                f"{title}中提到了哪些技术标准？",
-                f"{title}的执行标准是什么？",
-                f"{title}涉及的标准规范有哪些？"
-            ],
-            "规范": [
-                f"{title}的技术规范要求是什么？",
-                f"{title}中的规范条款有哪些？"
-            ],
-            "施工": [
-                f"{title}对施工有什么具体要求？",
-                f"{title}的施工技术规定是什么？",
-                f"{title}中施工应注意哪些事项？"
-            ],
-            "质量": [
-                f"{title}的质量控制要求是什么？",
-                f"{title}中质量标准如何规定？"
-            ],
-            "安全": [
-                f"{title}的安全规定有哪些？",
-                f"{title}中安全措施如何要求？"
-            ],
-            "材料": [
-                f"{title}对材料有什么要求？",
-                f"{title}中材料标准是什么？"
-            ],
-            "检测": [
-                f"{title}的检测方法是什么？",
-                f"{title}中检测要求如何规定？"
-            ]
-        }
-        
-        # 检查关键词并生成问题
-        for keyword, question_templates in keyword_patterns.items():
-            if keyword in content:
-                # 随机选择一个问题模板
-                import random
-                questions.append(random.choice(question_templates))
-        
-        # 确保至少有一个问题
-        if not questions:
-            questions = [
-                f"关于{title}的主要规定是什么？",
-                f"{title}的技术要求有哪些？",
-                f"{title}中的重点内容是什么？"
-            ]
-        
-        return questions[:3]  # 最多返回3个问题
+            print(f"❌ LLM生成原子问题失败: {e}")
+
     
     def process_chunks_with_atoms(self, chunks: List[Dict]) -> List[Dict]:
         """为文档块生成原子问题"""
+        if not self.use_llm:
+            raise RuntimeError("❌ LLM客户端未正确初始化，无法生成原子问题。请检查API配置。")
+        
+        print(f"🚀 开始为 {len(chunks)} 个文档块生成原子问题...")
+        
         for i, chunk in enumerate(chunks):
-            if i % 50 == 0:  # 每50个块打印一次进度
-                print(f"处理块 {i+1}/{len(chunks)}")
+            if i % 10 == 0:  # 每10个块打印一次进度
+                print(f"📝 处理进度: {i+1}/{len(chunks)}")
             
-            # 生成原子问题
-            if self.use_llm:
-                atom_questions = self.generate_atom_questions_with_llm(chunk)
-            else:
-                atom_questions = self.generate_atom_questions_fallback(chunk)
+            # 使用LLM生成原子问题
+            atom_questions = self.generate_atom_questions_with_llm(chunk)
+            
+            # 如果没有生成任何问题，跳过此块
+            if not atom_questions:
+                print(f"⚠️  块 {chunk['chunk_id']} 内容太短，跳过")
+                chunk["atom_questions"] = []
+                chunk["atoms"] = []
+                continue
             
             chunk["atom_questions"] = atom_questions
             
@@ -292,6 +306,13 @@ class PikeRagProcessor:
                 atoms.append(atom)
             
             chunk["atoms"] = atoms
+        
+        # 统计信息
+        total_atoms = sum(len(chunk.get("atoms", [])) for chunk in chunks)
+        print(f"✅ 原子问题生成完成！")
+        print(f"   总文档块: {len(chunks)}")
+        print(f"   总原子问题: {total_atoms}")
+        print(f"   平均每块: {total_atoms / len(chunks):.1f} 个问题")
         
         return chunks
     

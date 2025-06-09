@@ -1,8 +1,0 @@
-{
-  "processing_time": "2025-06-09T09:43:15.374283",
-  "total_chunks": 1146,
-  "total_atoms": 1146,
-  "average_atoms_per_chunk": 1.0,
-  "chunk_size": 1000,
-  "chunk_overlap": 200
-}
