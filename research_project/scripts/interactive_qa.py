@@ -17,6 +17,7 @@ from pathlib import Path
 
 from pikerag.utils.config_loader import load_dot_env
 from pikerag.workflows.qa import QaWorkflow
+from pikerag.workflows.common import GenerationQaData
 
 
 class InteractiveQASystem:
@@ -136,16 +137,16 @@ class InteractiveQASystem:
     def ask_question(self, question: str) -> Dict:
         """处理问题并返回结果"""
         try:
-            # 构建测试数据格式
-            test_data = {
-                "id": "interactive_question",
-                "question": question,
-                "answer": "",  # 交互模式下没有标准答案
-                "metadata": {"source": "interactive"}
-            }
+            # 构建测试数据格式 - 需要使用BaseQaData的子类
+            test_data = GenerationQaData(
+                id="interactive_question",
+                question=question,
+                answer_labels=[""],  # 交互模式下没有标准答案
+                metadata={"source": "interactive"}
+            )
             
-            # 调用工作流处理
-            result = self.workflow.run_single_question(test_data)
+            # 调用工作流处理 - 使用正确的answer方法
+            result = self.workflow.answer(test_data, 0)
             
             return {
                 "success": True,

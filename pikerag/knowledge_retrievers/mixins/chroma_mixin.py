@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 
 import time
+import os
+import hashlib
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -72,6 +74,49 @@ def _documents_match(docs: List[Document], ids: Optional[List[str]], vector_stor
     return True
 
 
+def _get_documents_hash(documents: List[Document]) -> str:
+    """计算文档集合的hash值，用于检查数据是否变化"""
+    if not documents:
+        return ""
+    
+    # 创建文档内容和元数据的hash
+    content_parts = []
+    for doc in documents[:10]:  # 只检查前10个文档以提高性能
+        content_parts.append(doc.page_content)
+        # 添加关键元数据
+        for key in sorted(doc.metadata.keys()):
+            content_parts.append(f"{key}:{doc.metadata[key]}")
+    
+    combined_content = "|||".join(content_parts)
+    return hashlib.md5(combined_content.encode('utf-8')).hexdigest()
+
+
+def _check_cache_file(persist_directory: str, collection_name: str, documents_hash: str) -> bool:
+    """检查缓存文件是否存在且匹配"""
+    cache_file = os.path.join(persist_directory, f"{collection_name}.cache")
+    
+    if not os.path.exists(cache_file):
+        return False
+    
+    try:
+        with open(cache_file, 'r') as f:
+            cached_hash = f.read().strip()
+        return cached_hash == documents_hash
+    except:
+        return False
+
+
+def _save_cache_file(persist_directory: str, collection_name: str, documents_hash: str):
+    """保存缓存文件"""
+    cache_file = os.path.join(persist_directory, f"{collection_name}.cache")
+    try:
+        os.makedirs(persist_directory, exist_ok=True)
+        with open(cache_file, 'w') as f:
+            f.write(documents_hash)
+    except Exception as e:
+        print(f"[ChromaDB] Warning: Failed to save cache file: {e}")
+
+
 def load_vector_store(
     collection_name: str,
     persist_directory: str,
@@ -82,26 +127,61 @@ def load_vector_store(
     metadata: dict=None,
 ) -> Chroma:
     print(f"[ChromaDB] Initializing collection: {collection_name}")
-    vector_store = Chroma(collection_name, embedding, persist_directory, collection_metadata=metadata)
-
+    
     if documents is None or len(documents) == 0:
         print(f"[ChromaDB] No documents provided, returning empty vector store")
-        return vector_store
+        return Chroma(collection_name, embedding, persist_directory, collection_metadata=metadata)
 
+    # 计算文档hash
+    documents_hash = _get_documents_hash(documents)
+    
+    # 检查缓存
+    if _check_cache_file(persist_directory, collection_name, documents_hash):
+        print(f"[ChromaDB] ✅ Found valid cache for collection {collection_name}")
+        vector_store = Chroma(collection_name, embedding, persist_directory, collection_metadata=metadata)
+        
+        # 快速检查collection是否存在且不为空
+        if vector_store._collection.count() > 0:
+            print(f"[ChromaDB] ✅ Collection {collection_name} loaded from cache ({vector_store._collection.count()} documents)")
+            return vector_store
+        else:
+            print(f"[ChromaDB] ⚠️  Cache file exists but collection is empty, will rebuild")
+    
+    # 如果没有缓存或缓存无效，检查现有数据
+    vector_store = Chroma(collection_name, embedding, persist_directory, collection_metadata=metadata)
+    
     assert exist_ok or vector_store._collection.count() == 0, f"Collection {collection_name} already exist!"
 
     ids = _check_ids_and_documents(ids, documents)
     
-    print(f"[ChromaDB] Checking existing collection with {len(documents)} documents...")
-    if _documents_match(documents, ids, vector_store):
-        print(f"[ChromaDB] ✅ Collection {collection_name} loaded from existing data.")
-        return vector_store
+    # 简化的文档匹配检查 - 只检查数量和随机采样1个文档
+    collection_count = vector_store._collection.count()
+    if collection_count == len(documents) and collection_count > 0:
+        print(f"[ChromaDB] Document count matches ({collection_count}), performing quick validation...")
+        try:
+            # 只检查1个随机文档
+            random_idx = np.random.choice(len(documents))
+            content_in_doc = documents[random_idx].page_content
+            
+            if ids is not None:
+                res = vector_store.get(ids=ids[random_idx])
+                if len(res) > 0 and len(res["documents"]) > 0:
+                    content_in_store = res["documents"][0]
+                    if content_in_store == content_in_doc:
+                        print(f"[ChromaDB] ✅ Quick validation passed, collection {collection_name} is ready")
+                        _save_cache_file(persist_directory, collection_name, documents_hash)
+                        return vector_store
+            
+        except Exception as e:
+            print(f"[ChromaDB] Validation failed with error: {e}")
+    
+    # 需要重建collection
+    print(f"[ChromaDB] 🗑️  Collection needs rebuilding...")
+    if collection_count > 0:
+        vector_store.delete_collection()
 
-    print(f"[ChromaDB] 🗑️  Deleting existing collection due to data mismatch...")
-    vector_store.delete_collection()
-
-    # Direct using of vector_store.add_documents() will raise InvalidCollectionException.
-    print(f"[ChromaDB] 🚀 Starting to build ChromaDB collection: {collection_name}")
+    # 重新构建
+    print(f"[ChromaDB] 🚀 Building ChromaDB collection: {collection_name}")
     print(f"[ChromaDB] 📊 Processing {len(documents)} documents...")
     print(f"[ChromaDB] ⏳ This may take a few minutes depending on document size and embedding model...")
     
@@ -122,6 +202,9 @@ def load_vector_store(
     print(f"[ChromaDB] ✅ Collection {collection_name} built successfully!")
     print(f"[ChromaDB] ⏱️  Time elapsed: {elapsed_time:.2f} seconds ({elapsed_time/60:.1f} minutes)")
     print(f"[ChromaDB] 📈 Processing rate: {len(documents)/elapsed_time:.1f} documents/second")
+    
+    # 保存缓存
+    _save_cache_file(persist_directory, collection_name, documents_hash)
     
     return vector_store
 
