@@ -146,6 +146,20 @@ class CompanyOpenAIClient(BaseLLMClient):
         if self._trace_id:
             self.debug(f"[Chat请求] Trace ID: {self._trace_id}")
         
+        # 打印完整的Prompt内容
+        self.info("=" * 80)
+        self.info("📝 [Chat请求] 完整Prompt内容:")
+        self.info("=" * 80)
+        for i, message in enumerate(messages):
+            role = message.get('role', 'unknown')
+            content = message.get('content', '')
+            self.info(f"[消息 {i+1}] 角色: {role}")
+            self.info(f"[消息 {i+1}] 内容:")
+            self.info("-" * 40)
+            self.info(content)
+            self.info("-" * 40)
+        self.info("=" * 80)
+        
         # 记录最后一条用户消息的摘要（避免记录过长的内容）
         if messages and len(messages) > 0:
             last_message = messages[-1]
@@ -182,6 +196,13 @@ class CompanyOpenAIClient(BaseLLMClient):
                         self.debug(f"[Chat响应] 结束原因: {choice.finish_reason}")
                         
                         if choice.message and choice.message.content:
+                            # 打印完整响应内容
+                            self.info("=" * 80)
+                            self.info("💬 [Chat响应] 完整响应内容:")
+                            self.info("=" * 80)
+                            self.info(choice.message.content)
+                            self.info("=" * 80)
+                            
                             content_preview = choice.message.content[:200]
                             if len(choice.message.content) > 200:
                                 content_preview += "..."
