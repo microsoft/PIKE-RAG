@@ -185,14 +185,21 @@ class QaDecompositionWorkflow(QaWorkflow):
     def _answer_original_question(self, question: str, chosen_atom_infos: List[AtomRetrievalInfo]) -> Dict[str, str]:
         """Given the atom information we chosen, let the LLM answer the question.
         """
+        self._logger.debug(f"📋 [最终答案] 使用 {len(chosen_atom_infos)} 个信息生成答案")
+        for i, info in enumerate(chosen_atom_infos, 1):
+            self._logger.debug(f"📋 [信息 {i}] {info.atom[:50]}... (来源: {info.source_chunk_title})")
+        
         messages = self._original_question_answering_protocol.process_input(
             content=question,
             chosen_atom_infos=chosen_atom_infos,
         )
         response = self._client.generate_content_with_messages(messages, **self.llm_config)
         output = self._original_question_answering_protocol.parse_output(response)
+        
         if "response" not in output:
             output["response"] = response
+            
+        self._logger.debug("📋 [最终答案] 生成完成")
         return output
 
     def answer(self, qa: BaseQaData, question_idx: int) -> Dict:
