@@ -8,7 +8,7 @@ import spacy
 import spacy.tokens
 from tqdm import tqdm
 
-from langchain.text_splitter import TextSplitter
+from langchain_text_splitters import TextSplitter
 from langchain_core.documents import Document
 
 
