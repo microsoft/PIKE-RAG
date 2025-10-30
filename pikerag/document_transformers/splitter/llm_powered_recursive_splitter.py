@@ -6,7 +6,7 @@ from typing import Callable, Iterable, List, Tuple
 
 from tqdm import tqdm
 
-from langchain.text_splitter import TextSplitter, RecursiveCharacterTextSplitter
+from langchain_text_splitters import TextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 from pikerag.llm_client import BaseLLMClient
